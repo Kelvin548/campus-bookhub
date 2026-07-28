@@ -1,0 +1,100 @@
+/* Core Color & SaaS Variables */
+:root {
+  --cb-primary: #0A3D62;
+  --cb-primary-hover: #072A44;
+  --cb-secondary: #3498DB;
+  --cb-success: #2ECC71;
+  --cb-warning: #F39C12;
+  --cb-danger: #E74C3C;
+  --cb-bg: #F8F9FA;
+  --cb-surface: #FFFFFF;
+  --cb-border: #E9ECEF;
+  --cb-text-dark: #1E293B;
+  --cb-text-muted: #64748B;
+  --cb-sidebar-width: 260px;
+  --cb-navbar-height: 70px;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: var(--cb-bg);
+  color: var(--cb-text-dark);
+}
+
+/* Custom Utilities */
+.fs-7 { font-size: 0.85rem; }
+.fs-8 { font-size: 0.75rem; }
+
+.icon-shape {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Sidebar Layout */
+#wrapper {
+  overflow-x: hidden;
+}
+
+#sidebar-wrapper {
+  min-height: 100vh;
+  width: var(--cb-sidebar-width);
+  transition: margin 0.25s ease-out;
+}
+
+.list-group-item {
+  border: none;
+  color: var(--cb-text-muted);
+  font-weight: 500;
+  padding: 0.75rem 1.25rem;
+}
+
+.list-group-item:hover {
+  background-color: #f1f5f9;
+  color: var(--cb-primary);
+}
+
+.list-group-item.active {
+  background-color: var(--cb-primary) !important;
+  color: #fff !important;
+}
+
+/* Component Elevation & Styling */
+.card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08) !important;
+}
+
+.btn-primary {
+  background-color: var(--cb-primary);
+  border-color: var(--cb-primary);
+}
+
+.btn-primary:hover {
+  background-color: var(--cb-primary-hover);
+  border-color: var(--cb-primary-hover);
+}
+
+/* Status Badges */
+.badge-pending {
+  background-color: #fef3c7;
+  color: #d97706;
+  border: 1px solid #fde68a;
+}
+
+.badge-verified, .badge-approved, .badge-collected {
+  background-color: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.badge-rejected {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
