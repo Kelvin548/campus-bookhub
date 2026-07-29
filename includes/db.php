@@ -7,7 +7,6 @@ $pass = getenv('DB_PASS') ?: '';
 $db   = getenv('DB_NAME') ?: 'campus_bookhub';
 $port = (int)(getenv('DB_PORT') ?: 3306);
 
-// Connect without mysqli_report
 $conn = @new mysqli($host, $user, $pass, $db, $port);
 
 if ($conn->connect_error) {
