@@ -2,15 +2,24 @@
 // includes/auth.php
 
 if (!defined('BASE_URL')) {
-    define('BASE_URL', '/campus_bookhub/');
+    // Automatically detect if running live on Railway or locally on XAMPP
+    if (isset($_SERVER['HTTP_HOST']) && strpos($_SERVER['HTTP_HOST'], 'railway.app') !== false) {
+        define('BASE_URL', '/');
+    } else {
+        define('BASE_URL', '/campus_bookhub/');
+    }
 }
 
 if (session_status() === PHP_SESSION_NONE) {
+    // Detect HTTPS dynamically for Railway vs Localhost
+    $is_secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') 
+                 || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+
     session_set_cookie_params([
         'lifetime' => 0,
         'path'     => '/',
         'domain'   => '',
-        'secure'   => false, // Set to true if using HTTPS
+        'secure'   => $is_secure, // Automatically true on Railway (HTTPS), false locally if HTTP
         'httponly' => true,  // Protects against XSS session theft
         'samesite' => 'Lax'  // Protects against CSRF
     ]);
@@ -58,11 +67,11 @@ function require_admin() {
 // Helper Badge Utility
 function get_status_badge_class(string $status): string {
     return match (strtolower($status)) {
-        'pending'             => 'bg-warning-subtle text-warning-emphasis',
+        'pending'                 => 'bg-warning-subtle text-warning-emphasis',
         'verified', 'approved', 
-        'collected'           => 'bg-success-subtle text-success',
-        'rejected', 'declined'=> 'bg-danger-subtle text-danger',
-        default               => 'bg-secondary-subtle text-secondary',
+        'collected'               => 'bg-success-subtle text-success',
+        'rejected', 'declined'    => 'bg-danger-subtle text-danger',
+        default                   => 'bg-secondary-subtle text-secondary',
     };
 }
 ?>
