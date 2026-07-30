@@ -7,15 +7,14 @@ RUN docker-php-ext-install mysqli pdo_mysql
 RUN a2enmod rewrite
 
 # Configure Apache to listen on port 8080 for Railway
-ENV PORT=8080
-RUN sed -i 's/80/${PORT}/g' /etc/apache2/sites-available/000-default.conf /etc/apache2/ports.conf
+RUN echo "Listen 8080" >> /etc/apache2/ports.conf
+RUN sed -i 's/:80/:8080/g' /etc/apache2/sites-available/000-default.conf
 
-# Copy project files
-WORKDIR /var/www/html
+# Copy project files into the Apache web root
 COPY . /var/www/html/
 
 # Set proper permissions
 RUN chown -R www-data:www-data /var/www/html
 
-# Explicitly start Apache in the foreground
-CMD ["apache2-foreground"]
+# Expose port 8080
+EXPOSE 8080
