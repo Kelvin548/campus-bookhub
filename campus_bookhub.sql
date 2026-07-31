@@ -41,7 +41,7 @@ CREATE TABLE `admin` (
 --
 
 INSERT INTO `admin` (`admin_id`, `username`, `password`, `fullname`, `email`, `created_at`) VALUES
-(1, 'admin_rep', '$2y$10$nWAWOQmGqLZSnW4RUXC0aOKsVq5CuWmqzQUijIt0Y5F9KddSwnmOe', 'Administrator', 'admin@campusbookhub.com', '2026-07-26 19:40:11');
+(1, 'admin_rep', '$2y$10$nWAWOQmGqLZSnW4RUXC0aOKsVq5CuWmqzQUijIt0Y5F9KddSwnmOe', 'Administrator', 'kelvinhonorajunior@gmail.com', '2026-07-26 19:40:11');
 
 -- --------------------------------------------------------
 
