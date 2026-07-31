@@ -281,8 +281,8 @@ require_once 'includes/header.php';
     }
 
     /* ========================================================
-       MEDIA QUERY: Small Screens & Phones (Responsive Design)
-       ======================================================== */
+        MEDIA QUERY: Small Screens & Phones (Responsive Design)
+        ======================================================== */
     @media (max-width: 768px) {
         .sliding-container {
             min-height: auto;
@@ -386,6 +386,9 @@ require_once 'includes/header.php';
                         <span class="input-group-text bg-light border-end-0"><i class="bi bi-lock text-muted"></i></span>
                         <input type="password" name="password" class="form-control bg-light border-start-0 rounded-end-3" placeholder="••••••••" required>
                     </div>
+                    <div class="text-end mt-1">
+                        <a href="forgot-password.php" class="fs-7 text-muted text-decoration-none">Forgot password?</a>
+                    </div>
                 </div>
 
                 <button type="submit" class="btn btn-wine w-100 py-2 mb-3">Sign In as Student</button>
@@ -433,6 +436,9 @@ require_once 'includes/header.php';
                     <div class="input-group">
                         <span class="input-group-text bg-light border-end-0"><i class="bi bi-key text-muted"></i></span>
                         <input type="password" name="password" class="form-control bg-light border-start-0 rounded-end-3" placeholder="••••••••" required>
+                    </div>
+                    <div class="text-end mt-1">
+                        <a href="forgot-password.php" class="fs-7 text-muted text-decoration-none">Forgot password?</a>
                     </div>
                 </div>
 
