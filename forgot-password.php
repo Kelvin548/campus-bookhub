@@ -76,8 +76,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Send email via PHPMailer SMTP
                 $email_sent = send_otp_email($email, $otp);
 
-                if (!$email_sent) {
-                    $error = "Failed to send email. Please check your SMTP configuration.";
+                if ($email_sent !== true) {
+                    $error = "SMTP Error: " . $email_sent;
                 } else {
                     $message = $success_message;
                 }
@@ -130,13 +130,6 @@ require_once 'includes/header.php';
             <div class="alert alert-success rounded-3 fs-7 py-3 mb-3 text-start">
                 <i class="bi bi-check-circle-fill me-1"></i><?php echo htmlspecialchars($message); ?>
             </div>
-
-            <?php if ($debug_otp && !empty($error)): ?>
-                <div class="alert alert-info rounded-3 fs-7 py-3 mb-3 text-start">
-                    <strong>Local Testing Debug Code:</strong> <span class="badge bg-dark fs-6"><?php echo htmlspecialchars($debug_otp); ?></span><br>
-                    <small class="text-muted">Copy this code and proceed to verification.</small>
-                </div>
-            <?php endif; ?>
 
             <a href="verify-otp.php" class="btn btn-wine w-100 py-2 mt-2 text-decoration-none d-block">Enter Verification Code</a>
         <?php else: ?>

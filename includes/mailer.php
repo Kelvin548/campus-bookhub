@@ -47,7 +47,7 @@ function send_otp_email($recipient_email, $otp_code) {
         $mail->send();
         return true;
     } catch (Exception $e) {
-        error_log("PHPMailer Error: " . $e->getMessage());
-        return false;
+        // Return the exact PHPMailer error message for debugging
+        return $mail->ErrorInfo ?: $e->getMessage();
     }
 }
