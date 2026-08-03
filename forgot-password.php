@@ -7,91 +7,75 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once 'includes/db.php';
 require_once 'includes/mailer.php';
 
-// Ensure a CSRF token exists for this session
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-
 $message = '';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $post_token = $_POST['csrf_token'] ?? '';
-    $session_token = $_SESSION['csrf_token'] ?? '';
+    $email = trim($_POST['email'] ?? '');
 
-    // Direct, robust CSRF verification
-    if (empty($post_token) || empty($session_token) || !hash_equals($session_token, $post_token)) {
-        $error = "Invalid session token. Please refresh and try again.";
+    if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $error = "Please enter a valid email address.";
     } else {
-        // Rotate token to prevent reuse
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+        $user_type = '';
+        
+        // 1. Check in students table
+        $stmt = $conn->prepare("SELECT student_id FROM students WHERE email = ?");
+        if ($stmt) {
+            $stmt->bind_param("s", $email);
+            $stmt->execute();
+            if ($stmt->get_result()->num_rows > 0) {
+                $user_type = 'student';
+            }
+            $stmt->close();
+        }
 
-        $email = trim($_POST['email'] ?? '');
-
-        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $error = "Please enter a valid email address.";
-        } else {
-            $user_type = '';
-            
-            // 1. Check in students table
-            $stmt = $conn->prepare("SELECT student_id FROM students WHERE email = ?");
+        // 2. If not found, check admin table
+        if (!$user_type) {
+            $stmt = $conn->prepare("SELECT admin_id FROM admin WHERE email = ?");
             if ($stmt) {
                 $stmt->bind_param("s", $email);
                 $stmt->execute();
                 if ($stmt->get_result()->num_rows > 0) {
-                    $user_type = 'student';
+                    $user_type = 'admin';
                 }
                 $stmt->close();
             }
+        }
 
-            // 2. If not found, check admin table
-            if (!$user_type) {
-                $stmt = $conn->prepare("SELECT admin_id FROM admin WHERE email = ?");
-                if ($stmt) {
-                    $stmt->bind_param("s", $email);
-                    $stmt->execute();
-                    if ($stmt->get_result()->num_rows > 0) {
-                        $user_type = 'admin';
-                    }
-                    $stmt->close();
-                }
+        $success_message = "If that email address exists in our system, a 6-digit verification code has been sent.";
+
+        if ($user_type) {
+            $otp = sprintf("%06d", mt_rand(0, 999999));
+            $expires_at = date('Y-m-d H:i:s', time() + 600); // 10 minutes expiration
+            
+            // Clear old tokens
+            $del_stmt = $conn->prepare("DELETE FROM password_resets WHERE email = ?");
+            if ($del_stmt) {
+                $del_stmt->bind_param("s", $email);
+                $del_stmt->execute();
+                $del_stmt->close();
             }
 
-            $success_message = "If that email address exists in our system, a 6-digit verification code has been sent.";
+            // Insert new OTP
+            $ins_stmt = $conn->prepare("INSERT INTO password_resets (email, token, expires_at) VALUES (?, ?, ?)");
+            if ($ins_stmt) {
+                $ins_stmt->bind_param("sss", $email, $otp, $expires_at);
+                $ins_stmt->execute();
+                $ins_stmt->close();
+            }
 
-            if ($user_type) {
-                $otp = sprintf("%06d", mt_rand(0, 999999));
-                $expires_at = date('Y-m-d H:i:s', time() + 600); // 10 minutes expiration
-                
-                // Clear old tokens
-                $del_stmt = $conn->prepare("DELETE FROM password_resets WHERE email = ?");
-                if ($del_stmt) {
-                    $del_stmt->bind_param("s", $email);
-                    $del_stmt->execute();
-                    $del_stmt->close();
-                }
+            $_SESSION['reset_email'] = $email;
 
-                // Insert new OTP
-                $ins_stmt = $conn->prepare("INSERT INTO password_resets (email, token, expires_at) VALUES (?, ?, ?)");
-                if ($ins_stmt) {
-                    $ins_stmt->bind_param("sss", $email, $otp, $expires_at);
-                    $ins_stmt->execute();
-                    $ins_stmt->close();
-                }
+            // Send email via PHPMailer SMTP (IPv4 + Port 465)
+            $email_sent = send_otp_email($email, $otp);
 
-                $_SESSION['reset_email'] = $email;
-
-                // Send email via PHPMailer SMTP (IPv4 + Port 465)
-                $email_sent = send_otp_email($email, $otp);
-
-                if ($email_sent !== true) {
-                    $error = "SMTP Error: " . $email_sent;
-                } else {
-                    $message = $success_message;
-                }
+            if ($email_sent !== true) {
+                $error = "SMTP Error: " . $email_sent;
             } else {
                 $message = $success_message;
             }
+        } else {
+            $message = $success_message;
         }
     }
 }
@@ -141,8 +125,6 @@ require_once 'includes/header.php';
             <a href="verify-otp.php" class="btn btn-wine w-100 py-2 mt-2 text-decoration-none d-block">Enter Verification Code</a>
         <?php else: ?>
             <form action="forgot-password.php" method="POST" autocomplete="off">
-                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
-
                 <div class="text-start mb-4">
                     <label class="form-label fs-7 fw-semibold text-dark">Account Email Address *</label>
                     <div class="input-group">
