@@ -1,43 +1,42 @@
 <?php
 // forgot-password.php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 require_once 'includes/db.php';
 require_once 'includes/auth.php';
 require_once 'includes/mailer.php';
 
+// Ensure a CSRF token exists for this session
+if (empty($_SESSION['csrf_token'])) {$_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 $message = '';
-$error = '';
-$debug_otp = ''; 
+$error = '';$debug_otp = ''; 
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
-        $error = "Invalid session token. Please refresh and try again.";
+    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {$error = "Invalid session token. Please refresh and try again.";
     } else {
         $email = trim($_POST['email'] ?? '');
 
-        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $error = "Please enter a valid email address.";
+        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {$error = "Please enter a valid email address.";
         } else {
             $user_type = '';
             
             // 1. Check in students table
-            $stmt = $conn->prepare("SELECT student_id FROM students WHERE email = ?");
-            if ($stmt) {
-                $stmt->bind_param("s", $email);
-                $stmt->execute();
-                if ($stmt->get_result()->num_rows > 0) {
-                    $user_type = 'student';
+            $stmt =$conn->prepare("SELECT student_id FROM students WHERE email = ?");
+            if ($stmt) {$stmt->bind_param("s", $email);$stmt->execute();
+                if ($stmt->get_result()->num_rows > 0) {$user_type = 'student';
                 }
                 $stmt->close();
             }
 
             // 2. If not found, check admin table
             if (!$user_type) {
-                $stmt = $conn->prepare("SELECT admin_id FROM admin WHERE email = ?");
-                if ($stmt) {
-                    $stmt->bind_param("s", $email);
-                    $stmt->execute();
-                    if ($stmt->get_result()->num_rows > 0) {
-                        $user_type = 'admin';
+                $stmt =$conn->prepare("SELECT admin_id FROM admin WHERE email = ?");
+                if ($stmt) {$stmt->bind_param("s", $email);$stmt->execute();
+                    if ($stmt->get_result()->num_rows > 0) {$user_type = 'admin';
                     }
                     $stmt->close();
                 }
@@ -52,38 +51,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $expires_at = date('Y-m-d H:i:s', time() + 600); // 10 minutes expiration
                 
                 // Clear any old tokens for this email
-                $del_stmt = $conn->prepare("DELETE FROM password_resets WHERE email = ?");
+                $del_stmt =$conn->prepare("DELETE FROM password_resets WHERE email = ?");
                 if ($del_stmt) {
                     $del_stmt->bind_param("s", $email);
-                    $del_stmt->execute();
-                    $del_stmt->close();
+                    $del_stmt->execute();$del_stmt->close();
                 }
 
                 // Insert new OTP into database table password_resets
-                $ins_stmt = $conn->prepare("INSERT INTO password_resets (email, token, expires_at) VALUES (?, ?, ?)");
+                $ins_stmt =$conn->prepare("INSERT INTO password_resets (email, token, expires_at) VALUES (?, ?, ?)");
                 if ($ins_stmt) {
-                    $ins_stmt->bind_param("sss", $email, $otp, $expires_at);
-                    $ins_stmt->execute();
-                    $ins_stmt->close();
+                    $ins_stmt->bind_param("sss", $email, $otp,$expires_at);
+                    $ins_stmt->execute();$ins_stmt->close();
                 }
 
                 // Store email in session for verification steps
-                $_SESSION['reset_email'] = $email;
+                $_SESSION['reset_email'] =$email;
 
                 // Capture OTP for local testing display box if needed
-                $debug_otp = $otp;
+                $debug_otp =$otp;
 
                 // Send email via PHPMailer SMTP
-                $email_sent = send_otp_email($email, $otp);
+                $email_sent = send_otp_email($email,$otp);
 
                 if ($email_sent !== true) {
                     $error = "SMTP Error: " . $email_sent;
                 } else {
-                    $message = $success_message;
+                    $message =$success_message;
                 }
             } else {
                 // Email doesn't exist, but show success message anyway for security
-                $message = $success_message;
+                $message =$success_message;
             }
         }
     }
