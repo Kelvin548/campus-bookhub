@@ -3,7 +3,6 @@
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-// Use absolute root path to avoid relative directory issues
 $root_path = dirname(__DIR__);
 
 require_once $root_path . '/src/Exception.php';
@@ -14,21 +13,24 @@ function send_otp_email($recipient_email, $otp_code) {
     $mail = new PHPMailer(true);
 
     try {
-        // Server settings (pulling from Railway environment variables with fallbacks)
         $mail->isSMTP();
-        $mail->Host       = getenv('SMTP_HOST') ?: 'smtp.gmail.com';
+        
+        // FIX: Force IPv4 resolution to prevent "Network is unreachable" on Railway
+        $smtp_host = getenv('SMTP_HOST') ?: 'smtp.gmail.com';
+        $mail->Host = gethostbyname($smtp_host);
+        
         $mail->SMTPAuth   = true;
         $mail->Username   = getenv('SMTP_USER') ?: 'kelvinhonorajunior@gmail.com';
         $mail->Password   = getenv('SMTP_PASS') ?: 'wrfxvkcmshdeuaym';
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = (int)(getenv('SMTP_PORT') ?: 587);
+        
+        // FIX: Use SMTPS on Port 465 (more reliable for cloud deployments)
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+        $mail->Port       = 465;
 
-        // Recipients
         $sender_email = getenv('SMTP_USER') ?: 'kelvinhonorajunior@gmail.com';
         $mail->setFrom($sender_email, 'Campus BookHub');
         $mail->addAddress($recipient_email);
 
-        // Content
         $mail->isHTML(true);
         $mail->Subject = 'Password Reset Verification Code - Campus BookHub';
         $mail->Body    = "
@@ -47,7 +49,7 @@ function send_otp_email($recipient_email, $otp_code) {
         $mail->send();
         return true;
     } catch (Exception $e) {
-        // Return the exact PHPMailer error message for debugging
+        // Return the exact error for debugging
         return $mail->ErrorInfo ?: $e->getMessage();
     }
 }
