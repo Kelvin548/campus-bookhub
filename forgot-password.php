@@ -3,6 +3,7 @@
 require_once 'includes/db.php';
 require_once 'includes/auth.php';
 require_once 'includes/mailer.php';
+
 $message = '';
 $error = '';
 $debug_otp = ''; 
@@ -20,22 +21,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // 1. Check in students table
             $stmt = $conn->prepare("SELECT student_id FROM students WHERE email = ?");
-            $stmt->bind_param("s", $email);
-            $stmt->execute();
-            if ($stmt->get_result()->num_rows > 0) {
-                $user_type = 'student';
+            if ($stmt) {
+                $stmt->bind_param("s", $email);
+                $stmt->execute();
+                if ($stmt->get_result()->num_rows > 0) {
+                    $user_type = 'student';
+                }
+                $stmt->close();
             }
-            $stmt->close();
 
             // 2. If not found, check admin table
             if (!$user_type) {
                 $stmt = $conn->prepare("SELECT admin_id FROM admin WHERE email = ?");
-                $stmt->bind_param("s", $email);
-                $stmt->execute();
-                if ($stmt->get_result()->num_rows > 0) {
-                    $user_type = 'admin';
+                if ($stmt) {
+                    $stmt->bind_param("s", $email);
+                    $stmt->execute();
+                    if ($stmt->get_result()->num_rows > 0) {
+                        $user_type = 'admin';
+                    }
+                    $stmt->close();
                 }
-                $stmt->close();
             }
 
             // Generic security response message (prevents email enumeration attacks)
@@ -48,20 +53,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 // Clear any old tokens for this email
                 $del_stmt = $conn->prepare("DELETE FROM password_resets WHERE email = ?");
-                $del_stmt->bind_param("s", $email);
-                $del_stmt->execute();
-                $del_stmt->close();
+                if ($del_stmt) {
+                    $del_stmt->bind_param("s", $email);
+                    $del_stmt->execute();
+                    $del_stmt->close();
+                }
 
-                // Insert new OTP into database table password_resets (stored in 'token' column)
+                // Insert new OTP into database table password_resets
                 $ins_stmt = $conn->prepare("INSERT INTO password_resets (email, token, expires_at) VALUES (?, ?, ?)");
-                $ins_stmt->bind_param("sss", $email, $otp, $expires_at);
-                $ins_stmt->execute();
-                $ins_stmt->close();
+                if ($ins_stmt) {
+                    $ins_stmt->bind_param("sss", $email, $otp, $expires_at);
+                    $ins_stmt->execute();
+                    $ins_stmt->close();
+                }
 
                 // Store email in session for verification steps
                 $_SESSION['reset_email'] = $email;
 
-                // Capture OTP for local testing display box
+                // Capture OTP for local testing display box if needed
                 $debug_otp = $otp;
 
                 // Send email via PHPMailer SMTP
@@ -70,7 +79,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$email_sent) {
                     $error = "Failed to send email. Please check your SMTP configuration.";
                 } else {
-                    // Only show success message if mail sent successfully
                     $message = $success_message;
                 }
             } else {
@@ -123,7 +131,7 @@ require_once 'includes/header.php';
                 <i class="bi bi-check-circle-fill me-1"></i><?php echo htmlspecialchars($message); ?>
             </div>
 
-            <?php if ($debug_otp): ?>
+            <?php if ($debug_otp && !empty($error)): ?>
                 <div class="alert alert-info rounded-3 fs-7 py-3 mb-3 text-start">
                     <strong>Local Testing Debug Code:</strong> <span class="badge bg-dark fs-6"><?php echo htmlspecialchars($debug_otp); ?></span><br>
                     <small class="text-muted">Copy this code and proceed to verification.</small>

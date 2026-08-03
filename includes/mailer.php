@@ -14,17 +14,18 @@ function send_otp_email($recipient_email, $otp_code) {
     $mail = new PHPMailer(true);
 
     try {
-        // Server settings
+        // Server settings (pulling from Railway environment variables with fallbacks)
         $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
+        $mail->Host       = getenv('SMTP_HOST') ?: 'smtp.gmail.com';
         $mail->SMTPAuth   = true;
-        $mail->Username   = 'kelvinhonorajunior@gmail.com';
-        $mail->Password   = 'wrfx vkcm shde uaym';
+        $mail->Username   = getenv('SMTP_USER') ?: 'kelvinhonorajunior@gmail.com';
+        $mail->Password   = getenv('SMTP_PASS') ?: 'wrfxvkcmshdeuaym';
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
+        $mail->Port       = (int)(getenv('SMTP_PORT') ?: 587);
 
         // Recipients
-        $mail->setFrom('kelvinhonorajunior@gmail.com', 'Campus BookHub');
+        $sender_email = getenv('SMTP_USER') ?: 'kelvinhonorajunior@gmail.com';
+        $mail->setFrom($sender_email, 'Campus BookHub');
         $mail->addAddress($recipient_email);
 
         // Content
