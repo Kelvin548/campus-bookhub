@@ -414,7 +414,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         // Initialize Paystack Modal with exact student details
         const handler = PaystackPop.setup({
-            key: 'pk_test_9d325d24823d0100ce2a49cb9cc015ae51fc1dc7',
+            key: 'pk_live_7959805de6cdaf28fdceb86c0d2b5aaa5f3fcbf0',
             email: "<?php echo htmlspecialchars($student_email); ?>",
             firstname: "<?php echo htmlspecialchars($student_name); ?>",
             amount: amountPesewas,
