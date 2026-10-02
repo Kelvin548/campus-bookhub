@@ -1,11 +1,11 @@
 <?php
 // includes/db.php
 
-$host = getenv('DB_HOST') ?: 'localhost';
-$user = getenv('DB_USER') ?: 'root';
-$pass = getenv('DB_PASS') ?: '';
-$db   = getenv('DB_NAME') ?: 'campus_bookhub';
-$port = (int)(getenv('DB_PORT') ?: 3306);
+$host = getenv('DB_HOST') ?: (getenv('MYSQLHOST') ?: 'localhost');
+$user = getenv('DB_USER') ?: (getenv('MYSQLUSER') ?: 'root');
+$pass = getenv('DB_PASS') ?: (getenv('MYSQLPASSWORD') ?: '');
+$db   = getenv('DB_NAME') ?: (getenv('MYSQL_DATABASE') ?: getenv('MYSQLDATABASE') ?: 'campus_bookhub');
+$port = (int)(getenv('DB_PORT') ?: (getenv('MYSQLPORT') ?: 3306));
 
 $conn = @new mysqli($host, $user, $pass, $db, $port);
 
