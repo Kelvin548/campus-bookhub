@@ -7,7 +7,7 @@ require_admin();
 $msg = '';
 $error = '';
 
-// Handle Actions (Payment Verification & Collection Confirmation)
+// Handle Actions (Payment Verification, Collection Confirmation & Deletion)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = "Invalid session token.";
@@ -55,6 +55,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $msg = "Order #ORD-" . sprintf('%04d', $order_id) . " marked as Handed Over!";
                 }
             }
+        }
+
+        // 3. Action: Delete Order
+        if ($_POST['action'] === 'delete_order') {
+            $conn->query("SET FOREIGN_KEY_CHECKS = 0");
+            $del_pay = $conn->prepare("DELETE FROM payments WHERE order_id = ?");
+            $del_pay->bind_param("i", $order_id);
+            $del_pay->execute();
+            $del_pay->close();
+
+            $del_ord = $conn->prepare("DELETE FROM orders WHERE order_id = ?");
+            $del_ord->bind_param("i", $order_id);
+            if ($del_ord->execute()) {
+                $msg = "Order #ORD-" . sprintf('%04d', $order_id) . " deleted successfully!";
+            } else {
+                $error = "Failed to delete order.";
+            }
+            $del_ord->close();
+            $conn->query("SET FOREIGN_KEY_CHECKS = 1");
         }
     }
 }
@@ -110,7 +129,7 @@ require_once '../includes/header.php';
         height: 100%;
         margin: 0;
         padding: 0;
-        overflow: hidden; /* Prevent body scroll */
+        overflow: hidden;
         font-family: var(--font-family);
         background-color: #f6f3f4;
         color: #2b2b2b;
@@ -181,7 +200,6 @@ require_once '../includes/header.php';
     #page-content-wrapper {
         margin-left: 260px;
         flex: 1;
-        width: calc(100% - 260px);
         height: 100vh;
         overflow-y: auto;
         display: flex;
@@ -483,7 +501,7 @@ require_once '../includes/header.php';
                                     <th>Total</th>
                                     <th>Payment</th>
                                     <th>Collection</th>
-                                    <th class="text-end pe-4">Action</th>
+                                    <th class="text-end pe-4">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -536,24 +554,36 @@ require_once '../includes/header.php';
                                                 <?php endif; ?>
                                             </td>
 
-                                            <!-- Action Column -->
+                                            <!-- Actions Column (Fulfillment + Delete) -->
                                             <td class="text-end pe-4">
-                                                <?php if ($is_verified && !$is_collected): ?>
+                                                <div class="d-inline-flex align-items-center gap-1 justify-content-end">
+                                                    <?php if ($is_verified && !$is_collected): ?>
+                                                        <form action="orders.php" method="POST" class="d-inline">
+                                                            <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                                                            <input type="hidden" name="action" value="collect">
+                                                            <input type="hidden" name="order_id" value="<?php echo $ord['order_id']; ?>">
+                                                            <button type="submit" class="btn btn-sm btn-success rounded-3 fw-semibold px-2.5 py-1.5 fs-8" onclick="return confirm('Confirm physical book handover to student?');" title="Mark Handed Over">
+                                                                <i class="bi bi-box-seam me-1"></i> Hand Over
+                                                            </button>
+                                                        </form>
+                                                    <?php elseif ($is_collected): ?>
+                                                        <span class="text-success fw-semibold fs-8 d-inline-flex align-items-center me-1">
+                                                            <i class="bi bi-check-all fs-5 text-success"></i>
+                                                        </span>
+                                                    <?php else: ?>
+                                                        <span class="text-muted fs-8 fst-italic me-1">Pending</span>
+                                                    <?php endif; ?>
+
+                                                    <!-- Delete Order Button -->
                                                     <form action="orders.php" method="POST" class="d-inline">
                                                         <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
-                                                        <input type="hidden" name="action" value="collect">
+                                                        <input type="hidden" name="action" value="delete_order">
                                                         <input type="hidden" name="order_id" value="<?php echo $ord['order_id']; ?>">
-                                                        <button type="submit" class="btn btn-sm btn-success rounded-3 fw-semibold px-3 py-1.5 fs-8" onclick="return confirm('Confirm physical book handover to student?');">
-                                                            <i class="bi bi-box-seam me-1"></i> Mark Handed Over
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-3 px-2 py-1.5 fs-8" onclick="return confirm('Are you sure you want to delete Order #ORD-<?php echo sprintf('%04d', $ord['order_id']); ?>?');" title="Delete Order">
+                                                            <i class="bi bi-trash-fill"></i>
                                                         </button>
                                                     </form>
-                                                <?php elseif ($is_collected): ?>
-                                                    <span class="text-success fw-semibold fs-8 d-inline-flex align-items-center">
-                                                        <i class="bi bi-check-all fs-5 me-1 text-success"></i> Handed Over
-                                                    </span>
-                                                <?php else: ?>
-                                                    <span class="text-muted fs-8 fst-italic">Payment Pending</span>
-                                                <?php endif; ?>
+                                                </div>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>
