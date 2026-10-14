@@ -12,21 +12,20 @@ $max_retries = 5;
 $retry_delay = 2; // seconds
 
 for ($i = 0; $i < $max_retries; $i++) {
-    // Suppress connection warnings with @ to handle wake-up delays gracefully
+    // The '@' sign suppresses the raw warning so we can catch it cleanly
     $conn = @new mysqli($host, $user, $pass, $db, $port);
     
-    if (!$conn->connect_error) {
+    if ($conn && !$conn->connect_error) {
         break; // Success! Exit the retry loop
     }
     
-    // Wait before trying again to give MySQL time to wake up
     if ($i < $max_retries - 1) {
         sleep($retry_delay);
     }
 }
 
 // If connection still fails after retries, show the professional loading screen with auto-refresh
-if ($conn->connect_error) {
+if (!$conn || $conn->connect_error) {
     http_response_code(503);
     ?>
     <!DOCTYPE html>
