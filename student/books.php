@@ -1,3 +1,11 @@
+<?php while ($book = $books->fetch_assoc()): ?>
+    <!-- TEMPORARY DEBUG: This will print the database value on your screen -->
+    <div style="background: yellow; color: black; font-size: 12px; padding: 2px;">
+        DB Image Value: <?php echo htmlspecialchars($book['image'] ?? 'NULL'); ?>
+    </div>
+    
+    <div class="col-md-6 col-lg-4 col-xl-3">
+        ...
 <?php
 // student/books.php
 require_once '../includes/db.php';
