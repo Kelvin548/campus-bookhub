@@ -280,7 +280,7 @@ require_once '../includes/header.php';
                         <div class="col-md-6 col-lg-4 col-xl-3">
                             <div class="card h-100 border-0 shadow-sm rounded-4 overflow-hidden bg-white book-card">
                                 <?php if (!empty($book['image']) && file_exists('../' . $book['image'])): ?>
-                                    <img src="../<?php echo htmlspecialchars($book['image']); ?>" class="card-img-top" style="height: 210px; object-fit: cover;">
+                                    <img src="../<?php echo htmlspecialchars($book['image']); ?>" class="card-img-top" style="height: 210px; object-fit: cover;" alt="Book Cover">
                                 <?php else: ?>
                                     <div class="bg-wine-subtle card-img-top d-flex align-items-center justify-content-center" style="height: 210px;">
                                         <i class="bi bi-book display-4 text-wine"></i>
