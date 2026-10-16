@@ -279,12 +279,6 @@ require_once '../includes/header.php';
                     <?php while ($book = $books->fetch_assoc()): ?>
                         <div class="col-md-6 col-lg-4 col-xl-3">
                             <div class="card h-100 border-0 shadow-sm rounded-4 overflow-hidden bg-white book-card">
-                                
-                                <!-- TEMPORARY DEBUG: Shows what path is stored in Railway DB -->
-                                <div style="background: #fff3cd; color: #856404; font-size: 11px; padding: 4px 8px; border-bottom: 1px solid #ffeeba;">
-                                    <b>DB Image:</b> <?php echo htmlspecialchars($book['image'] ?? 'EMPTY'); ?>
-                                </div>
-
                                 <?php if (!empty($book['image'])): ?>
                                     <img src="../<?php echo htmlspecialchars($book['image']); ?>" class="card-img-top" style="height: 180px; object-fit: cover;" alt="Book Cover">
                                 <?php else: ?>
