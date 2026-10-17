@@ -27,7 +27,7 @@ if (!function_exists('get_status_badge_class')) {
 $metrics_query = "
     SELECT 
         (SELECT COUNT(*) FROM books) AS total_books,
-        (SELECT COUNT(*) FROM users WHERE role = 'student') AS total_students,
+        (SELECT COUNT(*) FROM students) AS total_students,
         (SELECT COUNT(*) FROM orders) AS total_orders,
         (SELECT COUNT(*) FROM orders WHERE collection_status = 'Collected') AS collected_books,
         IFNULL(SUM(CASE WHEN status = 'Pending' THEN 1 ELSE 0 END), 0) AS pending_payments,
@@ -49,9 +49,9 @@ $total_revenue     = $metrics['total_revenue'] ?? 0.00;
 
 // Fetch Recent Orders (Limit 5)
 $recent_orders_query = "
-    SELECT o.order_id, u.fullname, u.index_number, b.title, o.total_amount, o.payment_status, o.collection_status, o.order_date 
+    SELECT o.order_id, s.fullname, s.index_number, b.title, o.total_amount, o.payment_status, o.collection_status, o.order_date 
     FROM orders o
-    JOIN users u ON o.user_id = u.user_id
+    JOIN students s ON o.student_id = s.student_id
     JOIN books b ON o.book_id = b.book_id
     ORDER BY o.order_date DESC LIMIT 5
 ";
@@ -87,14 +87,12 @@ require_once '../includes/header.php';
         overflow-x: hidden;
     }
 
-    /* Outer Wrapper Container */
     #dashboard-layout {
         position: relative;
         width: 100%;
         min-height: 100vh;
     }
 
-    /* STRICT FIXED SIDEBAR */
     #sidebar-wrapper {
         position: fixed;
         top: 0;
@@ -149,7 +147,6 @@ require_once '../includes/header.php';
         font-weight: 600;
     }
 
-    /* RIGHT SCROLLABLE CONTENT WRAPPER */
     #page-content-wrapper {
         margin-left: var(--sidebar-width);
         min-height: 100vh;
@@ -163,14 +160,12 @@ require_once '../includes/header.php';
         flex: 1 0 auto;
     }
 
-    /* Top Navigation Header */
     .top-navbar {
         background-color: #ffffff;
         border-bottom: 1px solid #eae2e4;
         height: 70px;
     }
 
-    /* Metric Cards Styling */
     .metric-card {
         background: #ffffff;
         border: 1px solid #eee5e7;
@@ -204,7 +199,6 @@ require_once '../includes/header.php';
     .bubble-teal { background: rgba(13, 148, 136, 0.1); color: #0d9488; }
     .bubble-success { background: rgba(25, 135, 84, 0.1); color: #198754; }
 
-    /* Primary Action Button */
     .btn-wine-gradient {
         background: var(--wine-gradient-card);
         color: #ffffff;
@@ -223,7 +217,6 @@ require_once '../includes/header.php';
         box-shadow: 0 8px 20px rgba(107, 29, 47, 0.35);
     }
 
-    /* Table Styles */
     .card-header-clean {
         background: transparent;
         border-bottom: 1px solid #f0e6e8;
@@ -251,7 +244,6 @@ require_once '../includes/header.php';
 
     .text-wine { color: var(--wine-main); }
 
-    /* Mobile Backdrop Overlay */
     .sidebar-overlay {
         display: none;
         position: fixed;
@@ -264,7 +256,6 @@ require_once '../includes/header.php';
         z-index: 1040;
     }
 
-    /* Mobile & Tablet Adjustments (< 992px) */
     @media (max-width: 991.98px) {
         #sidebar-wrapper {
             left: calc(-1 * var(--sidebar-width));
@@ -286,10 +277,8 @@ require_once '../includes/header.php';
 </style>
 
 <div id="dashboard-layout">
-    <!-- Backdrop overlay for mobile drawer -->
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-    <!-- Stationary Fixed Admin Sidebar -->
     <aside id="sidebar-wrapper">
         <div class="sidebar-brand-box">
             <a href="dashboard.php" class="d-inline-block">
@@ -329,9 +318,7 @@ require_once '../includes/header.php';
         </div>
     </aside>
 
-    <!-- Scrollable Main Content Column -->
     <div id="page-content-wrapper">
-        <!-- Top Navigation -->
         <nav class="navbar navbar-expand-lg top-navbar px-4">
             <div class="container-fluid p-0 d-flex align-items-center">
                 <button class="btn btn-light border me-3 d-lg-none rounded-3 p-1 px-2" id="sidebarToggle" type="button" aria-label="Toggle Navigation">
@@ -352,9 +339,7 @@ require_once '../includes/header.php';
             </div>
         </nav>
 
-        <!-- Main Body Content -->
         <main class="p-4">
-            <!-- Banner Header -->
             <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3 mb-4">
                 <div>
                     <h3 class="fw-bold text-dark mb-1 fs-4 fs-sm-3">System Dashboard</h3>
@@ -367,7 +352,6 @@ require_once '../includes/header.php';
                 </div>
             </div>
 
-            <!-- Primary Metrics -->
             <div class="row g-3 mb-4">
                 <div class="col-12 col-sm-6 col-xl-3">
                     <a href="books.php" class="metric-card p-3">
@@ -426,7 +410,6 @@ require_once '../includes/header.php';
                 </div>
             </div>
 
-            <!-- Quick Action Counters -->
             <div class="row g-3 mb-4">
                 <div class="col-12 col-md-4">
                     <div class="metric-card p-3" style="cursor: default;">
@@ -465,7 +448,6 @@ require_once '../includes/header.php';
                 </div>
             </div>
 
-            <!-- Recent Orders Section -->
             <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
                 <div class="card-header-clean d-flex justify-content-between align-items-center">
                     <h6 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
@@ -527,12 +509,10 @@ require_once '../includes/header.php';
             </div>
         </main>
 
-        <!-- Footer stays strictly within the right content column -->
         <?php require_once '../includes/footer.php'; ?>
     </div>
 </div>
 
-<!-- Mobile Menu JavaScript -->
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const layout = document.getElementById('dashboard-layout');

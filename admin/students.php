@@ -20,23 +20,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $student_id = (int)($_POST['student_id'] ?? 0);
         
         if ($student_id > 0) {
-            // Option 1: Clean up associated orders/payments first to avoid foreign key constraint issues
             $conn->begin_transaction();
             try {
                 // Delete dependent payment records for this student's orders
-                $stmt_pay = $conn->prepare("DELETE FROM payments WHERE order_id IN (SELECT order_id FROM orders WHERE user_id = ?)");
+                $stmt_pay = $conn->prepare("DELETE FROM payments WHERE order_id IN (SELECT order_id FROM orders WHERE student_id = ?)");
                 $stmt_pay->bind_param("i", $student_id);
                 $stmt_pay->execute();
 
                 // Delete dependent orders
-                $stmt_ord = $conn->prepare("DELETE FROM orders WHERE user_id = ?");
+                $stmt_ord = $conn->prepare("DELETE FROM orders WHERE student_id = ?");
                 $stmt_ord->bind_param("i", $student_id);
                 $stmt_ord->execute();
 
-                // Delete student user account
-                $stmt_user = $conn->prepare("DELETE FROM users WHERE user_id = ? AND role = 'student'");
-                $stmt_user->bind_param("i", $student_id);
-                $stmt_user->execute();
+                // Delete student record
+                $stmt_stud = $conn->prepare("DELETE FROM students WHERE student_id = ?");
+                $stmt_stud->bind_param("i", $student_id);
+                $stmt_stud->execute();
 
                 $conn->commit();
                 $success_msg = "Student record and associated history deleted successfully.";
@@ -53,12 +52,12 @@ $search = trim($_GET['search'] ?? '');
 
 if (!empty($search)) {
     $search_param = "%$search%";
-    $stmt = $conn->prepare("SELECT * FROM users WHERE role = 'student' AND (fullname LIKE ? OR index_number LIKE ? OR email LIKE ? OR phone LIKE ?) ORDER BY user_id DESC");
+    $stmt = $conn->prepare("SELECT * FROM students WHERE fullname LIKE ? OR index_number LIKE ? OR email LIKE ? OR phone LIKE ? ORDER BY student_id DESC");
     $stmt->bind_param("ssss", $search_param, $search_param, $search_param, $search_param);
     $stmt->execute();
     $students = $stmt->get_result();
 } else {
-    $students = $conn->query("SELECT * FROM users WHERE role = 'student' ORDER BY user_id DESC");
+    $students = $conn->query("SELECT * FROM students ORDER BY student_id DESC");
 }
 
 $page_title = "Manage Registered Students - Campus BookHub Admin";
@@ -212,7 +211,7 @@ require_once '../includes/header.php';
                             <?php if ($students && $students->num_rows > 0): ?>
                                 <?php while ($st = $students->fetch_assoc()): ?>
                                     <tr>
-                                        <td class="ps-4 fw-bold text-muted">#<?php echo $st['user_id']; ?></td>
+                                        <td class="ps-4 fw-bold text-muted">#<?php echo $st['student_id']; ?></td>
                                         <td>
                                             <div class="fw-bold text-dark"><?php echo htmlspecialchars($st['fullname']); ?></div>
                                         </td>
@@ -230,7 +229,7 @@ require_once '../includes/header.php';
                                             <form action="students.php" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this student account? All their associated orders and payment records will also be deleted.');">
                                                 <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                                                 <input type="hidden" name="action" value="delete_student">
-                                                <input type="hidden" name="student_id" value="<?php echo $st['user_id']; ?>">
+                                                <input type="hidden" name="student_id" value="<?php echo $st['student_id']; ?>">
                                                 <button type="submit" class="btn btn-outline-danger btn-sm rounded-2 px-3 fw-semibold">
                                                     <i class="bi bi-trash3-fill me-1"></i> Delete
                                                 </button>
