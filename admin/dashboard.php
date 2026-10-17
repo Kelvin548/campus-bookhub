@@ -27,7 +27,7 @@ if (!function_exists('get_status_badge_class')) {
 $metrics_query = "
     SELECT 
         (SELECT COUNT(*) FROM books) AS total_books,
-        (SELECT COUNT(*) FROM students) AS total_students,
+        (SELECT COUNT(*) FROM users WHERE role = 'student') AS total_students,
         (SELECT COUNT(*) FROM orders) AS total_orders,
         (SELECT COUNT(*) FROM orders WHERE collection_status = 'Collected') AS collected_books,
         IFNULL(SUM(CASE WHEN status = 'Pending' THEN 1 ELSE 0 END), 0) AS pending_payments,
@@ -49,9 +49,9 @@ $total_revenue     = $metrics['total_revenue'] ?? 0.00;
 
 // Fetch Recent Orders (Limit 5)
 $recent_orders_query = "
-    SELECT o.order_id, s.fullname, s.index_number, b.title, o.total_amount, o.payment_status, o.collection_status, o.order_date 
+    SELECT o.order_id, u.fullname, u.index_number, b.title, o.total_amount, o.payment_status, o.collection_status, o.order_date 
     FROM orders o
-    JOIN students s ON o.student_id = s.student_id
+    JOIN users u ON o.user_id = u.user_id
     JOIN books b ON o.book_id = b.book_id
     ORDER BY o.order_date DESC LIMIT 5
 ";
@@ -178,6 +178,8 @@ require_once '../includes/header.php';
         transition: all 0.3s ease;
         box-shadow: 0 4px 15px rgba(46, 8, 17, 0.03);
         height: 100%;
+        display: block;
+        text-decoration: none;
     }
 
     .metric-card:hover {
@@ -303,6 +305,9 @@ require_once '../includes/header.php';
             <a href="dashboard.php" class="sidebar-link active mb-1">
                 <i class="bi bi-grid-1x2-fill me-2.5"></i> Dashboard
             </a>
+            <a href="students.php" class="sidebar-link mb-1">
+                <i class="bi bi-people-fill me-2.5"></i> Registered Students
+            </a>
             <a href="books.php" class="sidebar-link mb-1">
                 <i class="bi bi-journal-bookmark-fill me-2.5"></i> Manage Books
             </a>
@@ -365,7 +370,7 @@ require_once '../includes/header.php';
             <!-- Primary Metrics -->
             <div class="row g-3 mb-4">
                 <div class="col-12 col-sm-6 col-xl-3">
-                    <div class="metric-card p-3">
+                    <a href="books.php" class="metric-card p-3">
                         <div class="d-flex align-items-center">
                             <div class="icon-bubble bubble-wine me-3">
                                 <i class="bi bi-book-half"></i>
@@ -375,11 +380,11 @@ require_once '../includes/header.php';
                                 <h3 class="fw-bold text-dark mb-0"><?php echo number_format($total_books); ?></h3>
                             </div>
                         </div>
-                    </div>
+                    </a>
                 </div>
 
                 <div class="col-12 col-sm-6 col-xl-3">
-                    <div class="metric-card p-3">
+                    <a href="students.php" class="metric-card p-3">
                         <div class="d-flex align-items-center">
                             <div class="icon-bubble bubble-teal me-3">
                                 <i class="bi bi-people-fill"></i>
@@ -389,11 +394,11 @@ require_once '../includes/header.php';
                                 <h3 class="fw-bold text-dark mb-0"><?php echo number_format($total_students); ?></h3>
                             </div>
                         </div>
-                    </div>
+                    </a>
                 </div>
 
                 <div class="col-12 col-sm-6 col-xl-3">
-                    <div class="metric-card p-3">
+                    <a href="orders.php" class="metric-card p-3">
                         <div class="d-flex align-items-center">
                             <div class="icon-bubble bubble-gold me-3">
                                 <i class="bi bi-cart3"></i>
@@ -403,11 +408,11 @@ require_once '../includes/header.php';
                                 <h3 class="fw-bold text-dark mb-0"><?php echo number_format($total_orders); ?></h3>
                             </div>
                         </div>
-                    </div>
+                    </a>
                 </div>
 
                 <div class="col-12 col-sm-6 col-xl-3">
-                    <div class="metric-card p-3">
+                    <div class="metric-card p-3" style="cursor: default;">
                         <div class="d-flex align-items-center">
                             <div class="icon-bubble bubble-success me-3">
                                 <i class="bi bi-wallet2"></i>
@@ -424,7 +429,7 @@ require_once '../includes/header.php';
             <!-- Quick Action Counters -->
             <div class="row g-3 mb-4">
                 <div class="col-12 col-md-4">
-                    <div class="metric-card p-3">
+                    <div class="metric-card p-3" style="cursor: default;">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
                                 <small class="text-muted fw-semibold d-block fs-8">Pending Payments</small>
@@ -436,7 +441,7 @@ require_once '../includes/header.php';
                 </div>
 
                 <div class="col-12 col-md-4">
-                    <div class="metric-card p-3">
+                    <div class="metric-card p-3" style="cursor: default;">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
                                 <small class="text-muted fw-semibold d-block fs-8">Verified Payments</small>
@@ -448,7 +453,7 @@ require_once '../includes/header.php';
                 </div>
 
                 <div class="col-12 col-md-4">
-                    <div class="metric-card p-3">
+                    <div class="metric-card p-3" style="cursor: default;">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
                                 <small class="text-muted fw-semibold d-block fs-8">Collected Manuals</small>
