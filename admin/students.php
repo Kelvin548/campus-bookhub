@@ -12,27 +12,25 @@ if (empty($_SESSION['csrf_token'])) {
 $success_msg = '';
 $error_msg = '';
 
-// Handle Student Deletion
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_student') {
+// Handle Student Deletion or Password Reset
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
         $error_msg = "Invalid security token. Please try again.";
     } else {
+        $action = $_POST['action'] ?? '';
         $student_id = (int)($_POST['student_id'] ?? 0);
-        
-        if ($student_id > 0) {
+
+        if ($action === 'delete_student' && $student_id > 0) {
             $conn->begin_transaction();
             try {
-                // Delete dependent payment records for this student's orders
                 $stmt_pay = $conn->prepare("DELETE FROM payments WHERE order_id IN (SELECT order_id FROM orders WHERE student_id = ?)");
                 $stmt_pay->bind_param("i", $student_id);
                 $stmt_pay->execute();
 
-                // Delete dependent orders
                 $stmt_ord = $conn->prepare("DELETE FROM orders WHERE student_id = ?");
                 $stmt_ord->bind_param("i", $student_id);
                 $stmt_ord->execute();
 
-                // Delete student record
                 $stmt_stud = $conn->prepare("DELETE FROM students WHERE student_id = ?");
                 $stmt_stud->bind_param("i", $student_id);
                 $stmt_stud->execute();
@@ -42,6 +40,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             } catch (Exception $e) {
                 $conn->rollback();
                 $error_msg = "Failed to delete student: " . $e->getMessage();
+            }
+        } elseif ($action === 'reset_password' && $student_id > 0) {
+            $new_password = trim($_POST['new_password'] ?? '');
+            if (!empty($new_password)) {
+                $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
+                $stmt_pw = $conn->prepare("UPDATE students SET password = ? WHERE student_id = ?");
+                $stmt_pw->bind_param("si", $hashed_password, $student_id);
+                if ($stmt_pw->execute()) {
+                    $success_msg = "Student password has been successfully reset!";
+                } else {
+                    $error_msg = "Failed to reset password.";
+                }
+            } else {
+                $error_msg = "Password cannot be empty.";
             }
         }
     }
@@ -152,7 +164,7 @@ require_once '../includes/header.php';
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <div>
                     <h4 class="fw-bold text-dark mb-1">Registered Students Directory</h4>
-                    <p class="text-muted fs-7 mb-0">View all enrolled student accounts, inspect registration details, or remove obsolete accounts.</p>
+                    <p class="text-muted fs-7 mb-0">View all enrolled student accounts, inspect registration details, reset passwords, or remove obsolete accounts.</p>
                 </div>
                 <div class="badge bg-wine-subtle text-wine fs-6 px-3 py-2 rounded-pill">
                     Total Registered: <b><?php echo $students ? $students->num_rows : 0; ?></b>
@@ -226,14 +238,52 @@ require_once '../includes/header.php';
                                             <?php echo !empty($st['created_at']) ? date('M d, Y', strtotime($st['created_at'])) : 'N/A'; ?>
                                         </td>
                                         <td class="text-end pe-4">
-                                            <form action="students.php" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this student account? All their associated orders and payment records will also be deleted.');">
-                                                <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
-                                                <input type="hidden" name="action" value="delete_student">
-                                                <input type="hidden" name="student_id" value="<?php echo $st['student_id']; ?>">
-                                                <button type="submit" class="btn btn-outline-danger btn-sm rounded-2 px-3 fw-semibold">
-                                                    <i class="bi bi-trash3-fill me-1"></i> Delete
+                                            <div class="d-flex justify-content-end gap-2">
+                                                <!-- Reset Password Button -->
+                                                <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-2.5 py-1 fs-8 fw-semibold" data-bs-toggle="modal" data-bs-target="#resetModal<?php echo $st['student_id']; ?>" title="Reset Password">
+                                                    <i class="bi bi-key-fill"></i> Reset
                                                 </button>
-                                            </form>
+
+                                                <!-- Compact, Cute Delete Button -->
+                                                <form action="students.php" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete <?php echo htmlspecialchars($st['fullname']); ?>?');">
+                                                    <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                                                    <input type="hidden" name="action" value="delete_student">
+                                                    <input type="hidden" name="student_id" value="<?php echo $st['student_id']; ?>">
+                                                    <button type="submit" class="btn btn-outline-danger btn-sm rounded-circle p-1 d-inline-flex align-items-center justify-content-center" style="width: 30px; height: 30px;" title="Delete Student">
+                                                        <i class="bi bi-trash3-fill fs-8"></i>
+                                                    </button>
+                                                </form>
+                                            </div>
+
+                                            <!-- Reset Password Modal -->
+                                            <div class="modal fade text-start" id="resetModal<?php echo $st['student_id']; ?>" tabindex="-1">
+                                                <div class="modal-dialog modal-dialog-centered">
+                                                    <div class="modal-content border-0 shadow rounded-4">
+                                                        <form action="students.php" method="POST">
+                                                            <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                                                            <input type="hidden" name="action" value="reset_password">
+                                                            <input type="hidden" name="student_id" value="<?php echo $st['student_id']; ?>">
+                                                            
+                                                            <div class="modal-header border-0 pb-0 pt-4 px-4">
+                                                                <h5 class="fw-bold text-dark mb-0">Reset Password</h5>
+                                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                            </div>
+                                                            <div class="modal-body px-4 py-3">
+                                                                <p class="text-muted fs-7 mb-3">Set a new temporary password for <b><?php echo htmlspecialchars($st['fullname']); ?></b> (Index: <?php echo htmlspecialchars($st['index_number']); ?>):</p>
+                                                                <div class="mb-3">
+                                                                    <label class="form-label fw-semibold fs-8 text-uppercase text-muted">New Password</label>
+                                                                    <input type="text" name="new_password" class="form-control rounded-3" value="Password123" required>
+                                                                    <small class="text-muted fs-8 mt-1 d-block">Default suggestion provided. You can edit it before saving.</small>
+                                                                </div>
+                                                            </div>
+                                                            <div class="modal-footer border-0 pt-0 pb-4 px-4">
+                                                                <button type="button" class="btn btn-light rounded-3 px-3 fs-7 fw-semibold" data-bs-dismiss="modal">Cancel</button>
+                                                                <button type="submit" class="btn btn-wine rounded-3 px-4 fs-7 fw-semibold">Update Password</button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </td>
                                     </tr>
                                 <?php endwhile; ?>
