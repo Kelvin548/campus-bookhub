@@ -4,7 +4,7 @@ require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_student();
 
-$student_id = $_SESSION['student_id'];
+$student_id = $_SESSION['user_id'];
 $success_msg = '';
 $error_msg = '';
 
@@ -29,16 +29,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($cart_items->num_rows > 0) {
             $conn->begin_transaction();
             try {
-                // For simplicity with your existing orders table structure, we can create an order for each book 
-                // or group them. Let's insert each cart item as an order linked to this transaction batch.
-                $total_batch_amount = 0;
                 $orders_created = [];
 
                 while ($item = $cart_items->fetch_assoc()) {
                     $item_total = $item['price'] * $item['quantity'];
-                    $total_batch_amount += $item_total;
 
-                    // Insert into orders table
+                    // Insert into orders table (using student_id column for student reference)
                     $stmt_ord = $conn->prepare("INSERT INTO orders (student_id, book_id, quantity, total_amount, payment_status, collection_status, order_date) VALUES (?, ?, ?, ?, 'Pending', 'Pending', NOW())");
                     $stmt_ord->bind_param("iiid", $student_id, $item['book_id'], $item['quantity'], $item_total);
                     $stmt_ord->execute();
@@ -52,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $conn->commit();
 
-                // Redirect to payment processing for the latest order or payment gateway
+                // Redirect to orders page
                 header("Location: my_orders.php");
                 exit();
 
@@ -107,7 +103,7 @@ require_once '../includes/header.php';
             <a href="books.php" class="sidebar-link mb-1 text-white-50 text-decoration-none d-block p-2"><i class="bi bi-journal-bookmark-fill me-2"></i> Browse Manuals</a>
             <a href="cart.php" class="sidebar-link active mb-1 text-white text-decoration-none d-block p-2 bg-dark rounded"><i class="bi bi-cart3 me-2"></i> My Cart</a>
             <a href="my_orders.php" class="sidebar-link mb-1 text-white-50 text-decoration-none d-block p-2"><i class="bi bi-bag-check-fill me-2"></i> My Orders</a>
-            <a href="profile.php" class="sidebar-link mb-1 text-white-50 text-decoration-none d-block p-2"><i class="bi bi-person-gear me-2"></i> Profile</a>
+            <a href="profile.php" class="sidebar-link mb-1 text-white-50 text-decoration-none d-block p-2"><i class="bi bi-person-gear me-2"></i> Profile Settings</a>
             <hr class="border-secondary opacity-25">
             <a href="../logout.php" class="sidebar-link text-danger text-decoration-none d-block p-2"><i class="bi bi-box-arrow-right me-2"></i> Logout</a>
         </div>
