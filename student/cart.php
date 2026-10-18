@@ -8,7 +8,7 @@ $student_id = $_SESSION['user_id'];
 $success_msg = '';
 $error_msg = '';
 
-// Handle Cart Actions (Remove item or Checkout)
+// Handle Cart Actions (Remove item only)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
@@ -18,49 +18,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->bind_param("ii", $cart_id, $student_id);
         $stmt->execute();
         $success_msg = "Item removed from cart.";
-    } elseif ($action === 'checkout') {
-        // Fetch all items in cart
-        $cart_query = "SELECT c.*, b.title, b.price FROM cart c JOIN books b ON c.book_id = b.book_id WHERE c.student_id = ?";
-        $stmt_cart = $conn->prepare($cart_query);
-        $stmt_cart->bind_param("i", $student_id);
-        $stmt_cart->execute();
-        $cart_items = $stmt_cart->get_result();
-
-        if ($cart_items->num_rows > 0) {
-            $conn->begin_transaction();
-            try {
-                $orders_created = [];
-
-                while ($item = $cart_items->fetch_assoc()) {
-                    $item_total = $item['price'] * $item['quantity'];
-
-                    // Insert into orders table
-                    $stmt_ord = $conn->prepare("INSERT INTO orders (student_id, book_id, quantity, total_amount, payment_status, collection_status, order_date) VALUES (?, ?, ?, ?, 'Pending', 'Pending', NOW())");
-                    $stmt_ord->bind_param("iiid", $student_id, $item['book_id'], $item['quantity'], $item_total);
-                    $stmt_ord->execute();
-                    $orders_created[] = $conn->insert_id;
-                }
-
-                // Clear the cart after creating orders
-                $stmt_clear = $conn->prepare("DELETE FROM cart WHERE student_id = ?");
-                $stmt_clear->bind_param("i", $student_id);
-                $stmt_clear->execute();
-
-                $conn->commit();
-
-                // Redirect to orders page
-                header("Location: my_orders.php");
-                exit();
-
-            } catch (Exception $e) {
-                $conn->rollback();
-                $error_msg = "Checkout failed: " . $e->getMessage();
-            }
-        } else {
-            $error_msg = "Your cart is empty.";
-        }
     }
 }
+
+// Fetch Logged-in Student Details for Paystack Checkout
+$user_stmt = $conn->prepare("SELECT * FROM students WHERE student_id = ?");
+$user_stmt->bind_param("i", $student_id);
+$user_stmt->execute();
+$student = $user_stmt->get_result()->fetch_assoc() ?? [];
+$user_stmt->close();
+
+$student_name  = $student['fullname'] ?? $student['full_name'] ?? ($_SESSION['name'] ?? 'Student');
+$student_email = $student['email'] ?? ($_SESSION['email'] ?? ('student' . $student_id . '@campusbookhub.com'));
+$index_number  = $student['index_number'] ?? ('INDEX-' . $student_id);
+$student_phone = $student['phone'] ?? '0544893582';
 
 // Fetch current cart items for display
 $cart_query = "SELECT c.*, b.title, b.course_code, b.price, b.image FROM cart c JOIN books b ON c.book_id = b.book_id WHERE c.student_id = ?";
@@ -70,6 +41,14 @@ $stmt->execute();
 $cart_result = $stmt->get_result();
 
 $subtotal = 0;
+$cart_items_array = [];
+
+if ($cart_result && $cart_result->num_rows > 0) {
+    while ($item = $cart_result->fetch_assoc()) {
+        $cart_items_array[] = $item;
+        $subtotal += ($item['price'] * $item['quantity']);
+    }
+}
 
 $page_title = "Shopping Cart - Campus BookHub";
 require_once '../includes/header.php';
@@ -84,6 +63,7 @@ require_once '../includes/header.php';
         --sidebar-bg: #1f050b;
         --font-family: 'Plus Jakarta Sans', sans-serif;
     }
+
     body { font-family: var(--font-family); background-color: #f6f3f4; color: #2b2b2b; overflow-x: hidden; }
     
     #wrapper { display: flex; width: 100%; min-height: 100vh; position: relative; }
@@ -107,6 +87,7 @@ require_once '../includes/header.php';
     .text-wine { color: var(--wine-main) !important; }
     .bg-wine-subtle { background-color: rgba(107, 29, 47, 0.08) !important; color: var(--wine-main) !important; }
     .btn-wine { background: var(--wine-gradient); color: #ffffff !important; border: none; }
+    .btn-wine:hover { background: var(--wine-gradient-card); color: #ffffff !important; }
 
     /* Mobile Drawer Overlay */
     .sidebar-overlay {
@@ -117,11 +98,11 @@ require_once '../includes/header.php';
     @media (max-width: 991.98px) {
         #sidebar-wrapper {
             position: fixed; top: 0; bottom: 0; left: 0;
-            margin-left: -260px; /* Hide sidebar off-screen by default on mobile */
+            margin-left: -260px;
             box-shadow: 4px 0 25px rgba(0, 0, 0, 0.3);
         }
         #wrapper.toggled #sidebar-wrapper {
-            margin-left: 0; /* Slide in when toggled */
+            margin-left: 0;
         }
         #wrapper.toggled .sidebar-overlay {
             display: block;
@@ -162,10 +143,10 @@ require_once '../includes/header.php';
             <h4 class="fw-bold text-dark mb-4">Your Course Manual Cart</h4>
 
             <?php if ($success_msg): ?>
-                <div class="alert alert-success rounded-3"><?php echo htmlspecialchars($success_msg); ?></div>
+                <div class="alert alert-success alert-dismissible fade show rounded-3 mb-4"><?php echo htmlspecialchars($success_msg); ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
             <?php endif; ?>
             <?php if ($error_msg): ?>
-                <div class="alert alert-danger rounded-3"><?php echo htmlspecialchars($error_msg); ?></div>
+                <div class="alert alert-danger alert-dismissible fade show rounded-3 mb-4"><?php echo htmlspecialchars($error_msg); ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
             <?php endif; ?>
 
             <div class="row g-4">
@@ -183,18 +164,23 @@ require_once '../includes/header.php';
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php if ($cart_result && $cart_result->num_rows > 0): ?>
-                                        <?php while ($item = $cart_result->fetch_assoc()): 
+                                    <?php if (!empty($cart_items_array)): ?>
+                                        <?php foreach ($cart_items_array as $item): 
                                             $item_total = $item['price'] * $item['quantity'];
-                                            $subtotal += $item_total;
+                                            $img_path = $item['image'] ?? '';
+                                            $img_path = ltrim($img_path, './');
+                                            if (strpos($img_path, 'uploads/') !== 0 && !empty($img_path)) {
+                                                $img_path = 'uploads/' . ltrim($img_path, '/');
+                                            }
+                                            $full_img_url = '../' . $img_path;
                                         ?>
                                             <tr>
                                                 <td>
                                                     <div class="d-flex align-items-center gap-3">
-                                                        <?php if (!empty($item['image'])): ?>
-                                                            <img src="../<?php echo htmlspecialchars($item['image']); ?>" width="45" height="55" class="rounded object-fit-contain bg-light p-1">
+                                                        <?php if (!empty($item['image']) && file_exists('../' . ltrim($item['image'], './'))): ?>
+                                                            <img src="<?php echo htmlspecialchars($full_img_url); ?>" width="45" height="55" class="rounded object-fit-contain bg-light p-1">
                                                         <?php else: ?>
-                                                            <div class="bg-light rounded p-2 text-center" style="width: 45px; height: 55px;"><i class="bi bi-book text-wine"></i></div>
+                                                            <div class="bg-wine-subtle rounded p-2 text-center d-flex align-items-center justify-content-center" style="width: 45px; height: 55px;"><i class="bi bi-book text-wine"></i></div>
                                                         <?php endif; ?>
                                                         <div>
                                                             <h6 class="fw-bold text-dark mb-0 fs-7"><?php echo htmlspecialchars($item['title']); ?></h6>
@@ -215,7 +201,7 @@ require_once '../includes/header.php';
                                                     </form>
                                                 </td>
                                             </tr>
-                                        <?php endwhile; ?>
+                                        <?php endforeach; ?>
                                     <?php else: ?>
                                         <tr>
                                             <td colspan="5" class="text-center py-5 text-muted">
@@ -238,18 +224,24 @@ require_once '../includes/header.php';
                             <span>GH₵ <?php echo number_format($subtotal, 2); ?></span>
                         </div>
                         <hr class="my-3">
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold text-dark fs-7">MoMo Phone Number *</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light text-muted fw-semibold fs-7 border-end-0">+233</span>
+                                <input type="tel" id="phone_number" class="form-control rounded-end-3 fs-7 fw-semibold" value="<?php echo htmlspecialchars($student_phone); ?>" placeholder="054XXXXXXX" maxlength="10" required>
+                            </div>
+                        </div>
+
                         <div class="d-flex justify-content-between mb-4 fw-bold text-dark fs-5">
                             <span>Total</span>
                             <span class="text-wine">GH₵ <?php echo number_format($subtotal, 2); ?></span>
                         </div>
 
                         <?php if ($subtotal > 0): ?>
-                            <form action="cart.php" method="POST">
-                                <input type="hidden" name="action" value="checkout">
-                                <button type="submit" class="btn btn-wine btn-lg w-100 rounded-3 fw-semibold fs-6">
-                                    Proceed to Checkout <i class="bi bi-arrow-right ms-1"></i>
-                                </button>
-                            </form>
+                            <button type="button" id="payCartBtn" class="btn btn-wine btn-lg w-100 rounded-3 fw-semibold fs-6 py-2.5">
+                                <i class="bi bi-phone-vibrate me-1"></i> Proceed to Checkout
+                            </button>
                         <?php else: ?>
                             <a href="books.php" class="btn btn-outline-secondary btn-lg w-100 rounded-3 fw-semibold fs-6">
                                 Browse Manuals
@@ -261,6 +253,9 @@ require_once '../includes/header.php';
         </main>
     </div>
 </div>
+
+<!-- Paystack Inline JS Library -->
+<script src="https://js.paystack.co/v1/inline.js"></script>
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {
@@ -278,6 +273,80 @@ document.addEventListener("DOMContentLoaded", function () {
     if (sidebarOverlay) {
         sidebarOverlay.addEventListener('click', function () {
             wrapper.classList.remove('toggled');
+        });
+    }
+
+    const payCartBtn = document.getElementById('payCartBtn');
+    if (payCartBtn) {
+        payCartBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+
+            const phone = document.getElementById('phone_number').value.trim();
+            const totalAmountGhc = <?php echo floatval($subtotal); ?>;
+            const amountPesewas = Math.round(totalAmountGhc * 100);
+
+            if (phone.length < 10) {
+                alert('Please enter a valid 10-digit Mobile Money phone number.');
+                return;
+            }
+
+            payCartBtn.disabled = true;
+            payCartBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Connecting to Paystack...';
+
+            const rawIndex = "<?php echo preg_replace('/[^A-Za-z0-9\-]/', '', $index_number); ?>";
+            const uniqueRef = rawIndex + '-' + Math.floor((Math.random() * 10000) + 1);
+
+            const handler = PaystackPop.setup({
+                key: 'pk_live_7959805de6cdaf28fdceb86c0d2b5aaa5f3fcbf0',
+                email: "<?php echo htmlspecialchars($student_email); ?>",
+                firstname: "<?php echo htmlspecialchars($student_name); ?>",
+                amount: amountPesewas,
+                currency: 'GHS',
+                ref: uniqueRef,
+                metadata: {
+                    custom_fields: [
+                        { display_name: "Student Name", variable_name: "student_name", value: "<?php echo htmlspecialchars($student_name); ?>" },
+                        { display_name: "Index Number", variable_name: "index_number", value: "<?php echo htmlspecialchars($index_number); ?>" },
+                        { display_name: "Order Type", variable_name: "order_type", value: "Multi-item Cart Checkout" }
+                    ]
+                },
+                callback: function (response) {
+                    payCartBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Verifying Payment...';
+                    
+                    const formData = new FormData();
+                    formData.append('reference', response.reference);
+                    formData.append('is_cart_checkout', '1');
+
+                    fetch('verify_paystack.php', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('Payment successfully verified! Redirecting to orders...');
+                            window.location.href = 'my_orders.php';
+                        } else {
+                            alert('Verification Failed: ' + data.message);
+                            payCartBtn.disabled = false;
+                            payCartBtn.innerHTML = '<i class="bi bi-phone-vibrate me-1"></i> Proceed to Checkout';
+                        }
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        alert('An error occurred while verifying transaction with the server.');
+                        payCartBtn.disabled = false;
+                        payCartBtn.innerHTML = '<i class="bi bi-phone-vibrate me-1"></i> Proceed to Checkout';
+                    });
+                },
+                onClose: function () {
+                    alert('Transaction was cancelled.');
+                    payCartBtn.disabled = false;
+                    payCartBtn.innerHTML = '<i class="bi bi-phone-vibrate me-1"></i> Proceed to Checkout';
+                }
+            });
+
+            handler.openIframe();
         });
     }
 });
