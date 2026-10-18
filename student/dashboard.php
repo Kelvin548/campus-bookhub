@@ -237,6 +237,9 @@ require_once '../includes/header.php';
             <a href="books.php" class="sidebar-link mb-1">
                 <i class="bi bi-journal-bookmark-fill me-2.5"></i> Browse Manuals
             </a>
+            <a href="cart.php" class="sidebar-link mb-1">
+                <i class="bi bi-cart3 me-2.5"></i> My Cart
+            </a>
             <a href="my_orders.php" class="sidebar-link mb-1">
                 <i class="bi bi-bag-check-fill me-2.5"></i> My Orders
             </a>

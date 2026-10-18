@@ -10,6 +10,33 @@ if ($book_id <= 0) {
     exit();
 }
 
+$success_msg = '';
+$error_msg = '';
+$student_id = $_SESSION['user_id'];
+
+// Handle Add to Cart action
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_to_cart') {
+    $qty = max(1, (int)($_POST['quantity'] ?? 1));
+
+    $check_stmt = $conn->prepare("SELECT cart_id, quantity FROM cart WHERE student_id = ? AND book_id = ?");
+    $check_stmt->bind_param("ii", $student_id, $book_id);
+    $check_stmt->execute();
+    $existing = $check_stmt->get_result();
+
+    if ($existing->num_rows > 0) {
+        $row = $existing->fetch_assoc();
+        $new_qty = $row['quantity'] + $qty;
+        $update_stmt = $conn->prepare("UPDATE cart SET quantity = ? WHERE cart_id = ?");
+        $update_stmt->bind_param("ii", $new_qty, $row['cart_id']);
+        $update_stmt->execute();
+    } else {
+        $insert_stmt = $conn->prepare("INSERT INTO cart (student_id, book_id, quantity) VALUES (?, ?, ?)");
+        $insert_stmt->bind_param("iii", $student_id, $book_id, $qty);
+        $insert_stmt->execute();
+    }
+    $success_msg = "Book added to your cart successfully!";
+}
+
 // 1. Fetch Book Information
 $stmt = $conn->prepare("SELECT * FROM books WHERE book_id = ?");
 $stmt->bind_param("i", $book_id);
@@ -23,7 +50,6 @@ if (!$book) {
 }
 
 // 2. Fetch Logged-in Student Details from the 'students' table
-$student_id = $_SESSION['user_id'];
 $user_stmt = $conn->prepare("SELECT * FROM students WHERE student_id = ?");
 $user_stmt->bind_param("i", $student_id);
 $user_stmt->execute();
@@ -229,6 +255,9 @@ require_once '../includes/header.php';
             <a href="books.php" class="sidebar-link active mb-1">
                 <i class="bi bi-journal-bookmark-fill me-2.5"></i> Browse Manuals
             </a>
+            <a href="cart.php" class="sidebar-link mb-1">
+                <i class="bi bi-cart3 me-2.5"></i> My Cart
+            </a>
             <a href="my_orders.php" class="sidebar-link mb-1">
                 <i class="bi bi-bag-check-fill me-2.5"></i> My Orders
             </a>
@@ -255,11 +284,15 @@ require_once '../includes/header.php';
                 </button>
 
                 <span class="fw-bold text-dark fs-6 d-flex align-items-center gap-2">
-                    <i class="bi bi-credit-card-2-front-fill text-wine fs-5"></i>
-                    <span>Paystack MoMo Checkout</span>
+                    <i class="bi bi-journal-text text-wine fs-5"></i>
+                    <span>Manual Details & Checkout</span>
                 </span>
 
                 <div class="d-flex align-items-center gap-3 ms-auto">
+                    <a href="cart.php" class="btn btn-outline-secondary btn-sm rounded-pill px-3 py-1.5 fs-7 d-flex align-items-center gap-1">
+                        <i class="bi bi-cart3 text-wine"></i>
+                        <span class="d-none d-sm-inline">My Cart</span>
+                    </a>
                     <a href="books.php" class="btn btn-outline-secondary btn-sm rounded-3 d-flex align-items-center gap-1">
                         <i class="bi bi-arrow-left"></i>
                         <span class="d-none d-sm-inline">Back to Catalog</span>
@@ -269,12 +302,19 @@ require_once '../includes/header.php';
         </nav>
 
         <main class="p-4">
+            <?php if ($success_msg): ?>
+                <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
+                    <i class="bi bi-check-circle-fill me-2"></i><?php echo htmlspecialchars($success_msg); ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            <?php endif; ?>
+
             <div class="row g-4">
                 <!-- Book Info Column -->
                 <div class="col-lg-5">
                     <div class="card border-0 shadow-sm rounded-4 p-4 bg-white h-100">
                         <?php if (!empty($book['image']) && file_exists('../' . $book['image'])): ?>
-                            <img src="../<?php echo htmlspecialchars($book['image']); ?>" class="img-fluid rounded-3 mb-3 shadow-sm" style="max-height: 320px; width: 100%; object-fit: cover;">
+                            <img src="../<?php echo htmlspecialchars($book['image']); ?>" class="img-fluid rounded-3 mb-3 shadow-sm bg-light p-2" style="max-height: 320px; width: 100%; object-fit: contain;">
                         <?php else: ?>
                             <div class="bg-wine-subtle rounded-3 d-flex align-items-center justify-content-center mb-3" style="height: 260px;">
                                 <i class="bi bi-book display-1 text-wine"></i>
@@ -308,7 +348,7 @@ require_once '../includes/header.php';
                     </div>
                 </div>
 
-                <!-- Paystack Form Column -->
+                <!-- Paystack Form & Cart Column -->
                 <div class="col-lg-7">
                     <div class="card border-0 shadow-sm rounded-4 p-4 p-md-5 bg-white h-100">
                         <div class="alert alert-light border border-wine-subtle bg-wine-subtle text-dark rounded-3 d-flex align-items-center gap-3 mb-4">
@@ -342,8 +382,17 @@ require_once '../includes/header.php';
                                 <span class="fw-bold fs-3 text-wine" id="totalPriceDisplay">GH₵ <?php echo number_format($book['price'], 2); ?></span>
                             </div>
 
-                            <button type="submit" id="payBtn" class="btn btn-wine btn-lg w-100 py-3 rounded-3 fw-bold shadow-sm" <?php echo ($book['stock'] <= 0) ? 'disabled' : ''; ?>>
+                            <button type="submit" id="payBtn" class="btn btn-wine btn-lg w-100 py-3 rounded-3 fw-bold shadow-sm mb-3" <?php echo ($book['stock'] <= 0) ? 'disabled' : ''; ?>>
                                 <i class="bi bi-phone-vibrate me-1"></i> Pay with Mobile Money
+                            </button>
+                        </form>
+
+                        <!-- Add to Cart Option -->
+                        <form action="book_details.php?id=<?php echo $book_id; ?>" method="POST">
+                            <input type="hidden" name="action" value="add_to_cart">
+                            <input type="hidden" name="quantity" id="cartQtyInput" value="1">
+                            <button type="submit" class="btn btn-outline-secondary btn-lg w-100 py-2.5 rounded-3 fw-semibold">
+                                <i class="bi bi-cart-plus me-1"></i> Add to Cart for Multi-Item Checkout
                             </button>
                         </form>
                     </div>
@@ -358,7 +407,6 @@ require_once '../includes/header.php';
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-    // Mobile Drawer Scripts
     const wrapper = document.getElementById('wrapper');
     const sidebarToggle = document.getElementById('sidebarToggle');
     const sidebarOverlay = document.getElementById('sidebarOverlay');
@@ -376,17 +424,17 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // Checkout Logic
     const quantityInput = document.getElementById('quantityInput');
+    const cartQtyInput = document.getElementById('cartQtyInput');
     const unitPrice = parseFloat(document.getElementById('unit_price').value);
     const totalPriceDisplay = document.getElementById('totalPriceDisplay');
     const checkoutForm = document.getElementById('paystackCheckoutForm');
     const payBtn = document.getElementById('payBtn');
 
-    // Live Price Calculation
     quantityInput.addEventListener('input', function () {
         let qty = parseInt(this.value) || 1;
         if (qty < 1) qty = 1;
+        cartQtyInput.value = qty; // Sync quantity with cart form
         let total = (qty * unitPrice).toFixed(2);
         totalPriceDisplay.textContent = 'GH₵ ' + total;
     });
@@ -408,11 +456,9 @@ document.addEventListener("DOMContentLoaded", function () {
         payBtn.disabled = true;
         payBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Connecting to Paystack...';
 
-        // Clean reference starting with Student Index Number
         const rawIndex = "<?php echo preg_replace('/[^A-Za-z0-9\-]/', '', $index_number); ?>";
         const uniqueRef = rawIndex + '-' + Math.floor((Math.random() * 10000) + 1);
 
-        // Initialize Paystack Modal with exact student details
         const handler = PaystackPop.setup({
             key: 'pk_live_7959805de6cdaf28fdceb86c0d2b5aaa5f3fcbf0',
             email: "<?php echo htmlspecialchars($student_email); ?>",
