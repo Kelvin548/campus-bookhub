@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 while ($item = $cart_items->fetch_assoc()) {
                     $item_total = $item['price'] * $item['quantity'];
 
-                    // Insert into orders table (using student_id column for student reference)
+                    // Insert into orders table
                     $stmt_ord = $conn->prepare("INSERT INTO orders (student_id, book_id, quantity, total_amount, payment_status, collection_status, order_date) VALUES (?, ?, ?, ?, 'Pending', 'Pending', NOW())");
                     $stmt_ord->bind_param("iiid", $student_id, $item['book_id'], $item['quantity'], $item_total);
                     $stmt_ord->execute();
@@ -80,38 +80,82 @@ require_once '../includes/header.php';
         --wine-main: #6b1d2f;
         --wine-dark: #2e0811;
         --wine-gradient: linear-gradient(135deg, #6b1d2f 0%, #2e0811 100%);
+        --wine-gradient-card: linear-gradient(145deg, #7c2237 0%, #420b17 100%);
         --sidebar-bg: #1f050b;
         --font-family: 'Plus Jakarta Sans', sans-serif;
     }
-    body { font-family: var(--font-family); background-color: #f6f3f4; color: #2b2b2b; }
-    #wrapper { display: flex; width: 100%; min-height: 100vh; }
-    #sidebar-wrapper { width: 260px; min-width: 260px; background: var(--sidebar-bg) !important; }
-    #page-content-wrapper { flex: 1; width: 100%; }
+    body { font-family: var(--font-family); background-color: #f6f3f4; color: #2b2b2b; overflow-x: hidden; }
+    
+    #wrapper { display: flex; width: 100%; min-height: 100vh; position: relative; }
+    
+    #sidebar-wrapper {
+        width: 260px; min-width: 260px; background: var(--sidebar-bg) !important;
+        min-height: 100vh; border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
+        transition: all 0.3s ease-in-out; z-index: 1050;
+    }
+    .sidebar-brand-box { background: rgba(255, 255, 255, 0.03); border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+    .sidebar-logo-img { max-height: 48px; object-fit: contain; background: #ffffff; padding: 4px 8px; border-radius: 10px; }
+    .sidebar-link {
+        color: rgba(255, 255, 255, 0.7) !important; padding: 0.75rem 1rem; font-weight: 500; font-size: 0.88rem;
+        border-radius: 10px !important; display: flex; align-items: center; text-decoration: none; transition: all 0.25s ease;
+    }
+    .sidebar-link:hover { background: rgba(255, 255, 255, 0.08) !important; color: #ffffff !important; }
+    .sidebar-link.active { background: var(--wine-gradient-card) !important; color: #ffffff !important; font-weight: 600; }
+
+    #page-content-wrapper { flex: 1; width: 100%; min-width: 0; }
     .top-navbar { background-color: #ffffff; border-bottom: 1px solid #eae2e4; height: 70px; }
     .text-wine { color: var(--wine-main) !important; }
     .bg-wine-subtle { background-color: rgba(107, 29, 47, 0.08) !important; color: var(--wine-main) !important; }
     .btn-wine { background: var(--wine-gradient); color: #ffffff !important; border: none; }
+
+    /* Mobile Drawer Overlay */
+    .sidebar-overlay {
+        display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+        background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(2px); z-index: 1040;
+    }
+
+    @media (max-width: 991.98px) {
+        #sidebar-wrapper {
+            position: fixed; top: 0; bottom: 0; left: 0;
+            margin-left: -260px; /* Hide sidebar off-screen by default on mobile */
+            box-shadow: 4px 0 25px rgba(0, 0, 0, 0.3);
+        }
+        #wrapper.toggled #sidebar-wrapper {
+            margin-left: 0; /* Slide in when toggled */
+        }
+        #wrapper.toggled .sidebar-overlay {
+            display: block;
+        }
+    }
 </style>
 
 <div id="wrapper">
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
     <aside id="sidebar-wrapper">
-        <div class="px-3 py-3 text-center border-bottom border-secondary border-opacity-10">
-            <a href="dashboard.php"><img src="../assets/images/logo.jpeg" alt="Logo" style="max-height: 48px; object-fit: contain; background:#fff; padding:4px; border-radius:10px;"></a>
+        <div class="sidebar-brand-box px-3 py-3 text-center">
+            <a href="dashboard.php" class="d-inline-block">
+                <img src="../assets/images/logo.jpeg" alt="Logo" class="sidebar-logo-img img-fluid">
+            </a>
         </div>
         <div class="p-3">
-            <a href="dashboard.php" class="sidebar-link mb-1 text-white-50 text-decoration-none d-block p-2"><i class="bi bi-grid-1x2-fill me-2"></i> Dashboard</a>
-            <a href="books.php" class="sidebar-link mb-1 text-white-50 text-decoration-none d-block p-2"><i class="bi bi-journal-bookmark-fill me-2"></i> Browse Manuals</a>
-            <a href="cart.php" class="sidebar-link active mb-1 text-white text-decoration-none d-block p-2 bg-dark rounded"><i class="bi bi-cart3 me-2"></i> My Cart</a>
-            <a href="my_orders.php" class="sidebar-link mb-1 text-white-50 text-decoration-none d-block p-2"><i class="bi bi-bag-check-fill me-2"></i> My Orders</a>
-            <a href="profile.php" class="sidebar-link mb-1 text-white-50 text-decoration-none d-block p-2"><i class="bi bi-person-gear me-2"></i> Profile Settings</a>
-            <hr class="border-secondary opacity-25">
-            <a href="../logout.php" class="sidebar-link text-danger text-decoration-none d-block p-2"><i class="bi bi-box-arrow-right me-2"></i> Logout</a>
+            <small class="text-uppercase fw-bold px-2 mb-2 d-block fs-8" style="color: rgba(255,255,255,0.4) !important;">Student Portal</small>
+            <a href="dashboard.php" class="sidebar-link mb-1"><i class="bi bi-grid-1x2-fill me-2.5"></i> Dashboard</a>
+            <a href="books.php" class="sidebar-link mb-1"><i class="bi bi-journal-bookmark-fill me-2.5"></i> Browse Manuals</a>
+            <a href="cart.php" class="sidebar-link active mb-1"><i class="bi bi-cart3 me-2.5"></i> My Cart</a>
+            <a href="my_orders.php" class="sidebar-link mb-1"><i class="bi bi-bag-check-fill me-2.5"></i> My Orders</a>
+            <a href="profile.php" class="sidebar-link mb-1"><i class="bi bi-person-gear me-2.5"></i> Profile Settings</a>
+            <hr style="border-color: rgba(255,255,255,0.1); margin: 1.25rem 0;">
+            <a href="../logout.php" class="sidebar-link text-danger mb-1" style="color: #ff6b81 !important;"><i class="bi bi-box-arrow-right me-2.5"></i> Logout</a>
         </div>
     </aside>
 
     <div id="page-content-wrapper">
         <nav class="navbar navbar-expand-lg top-navbar px-4">
-            <span class="navbar-brand fw-semibold text-muted fs-6">Shopping Cart</span>
+            <div class="container-fluid p-0 d-flex align-items-center">
+                <button class="btn btn-light border me-3 d-lg-none rounded-3 p-1 px-2" id="sidebarToggle" type="button"><i class="bi bi-list fs-4 text-wine"></i></button>
+                <span class="navbar-brand fw-semibold text-muted fs-6 mb-0">Shopping Cart</span>
+            </div>
         </nav>
 
         <main class="p-4">
@@ -217,5 +261,26 @@ require_once '../includes/header.php';
         </main>
     </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const wrapper = document.getElementById('wrapper');
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+    if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', function (e) {
+            e.preventDefault();
+            wrapper.classList.toggle('toggled');
+        });
+    }
+
+    if (sidebarOverlay) {
+        sidebarOverlay.addEventListener('click', function () {
+            wrapper.classList.remove('toggled');
+        });
+    }
+});
+</script>
 
 <?php require_once '../includes/footer.php'; ?>
