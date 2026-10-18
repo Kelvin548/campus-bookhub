@@ -87,25 +87,23 @@ require_once '../includes/header.php';
     .text-wine { color: var(--wine-main) !important; }
     .bg-wine-subtle { background-color: rgba(107, 29, 47, 0.08) !important; color: var(--wine-main) !important; }
 
-    /* MTN Yellow Checkout Button & Focus Styling */
-    .btn-mtn {
+    /* MTN Yellow Card & Checkout Button Styling */
+    .card-mtn-yellow {
         background-color: #FFCC00 !important;
-        color: #000000 !important;
-        font-weight: 700 !important;
+        color: #111111 !important;
+        border: 1px solid #E6B800 !important;
+    }
+
+    .btn-dark-checkout {
+        background-color: #111111 !important;
+        color: #FFCC00 !important;
         border: none !important;
-        transition: all 0.3s ease !important;
+        font-weight: 700 !important;
     }
 
-    .btn-mtn:hover {
-        background-color: #E6B800 !important;
-        color: #000000 !important;
-        transform: translateY(-2px);
-        box-shadow: 0 6px 15px rgba(255, 204, 0, 0.4) !important;
-    }
-
-    .mtn-border-focus:focus-within {
-        border-color: #FFCC00 !important;
-        box-shadow: 0 0 0 3px rgba(255, 204, 0, 0.25) !important;
+    .btn-dark-checkout:hover {
+        background-color: #2b2b2b !important;
+        color: #FFCC00 !important;
     }
 
     /* Mobile Drawer Overlay */
@@ -236,33 +234,34 @@ require_once '../includes/header.php';
                 </div>
 
                 <div class="col-lg-4">
-                    <div class="card border-0 shadow-sm rounded-4 bg-white p-4">
-                        <h5 class="fw-bold text-dark mb-3">Order Summary</h5>
-                        <div class="d-flex justify-content-between mb-2 text-muted fs-7">
+                    <!-- Order Summary Card in MTN Yellow -->
+                    <div class="card border-0 shadow-sm rounded-4 card-mtn-yellow p-4">
+                        <h5 class="fw-bold mb-3">Order Summary</h5>
+                        <div class="d-flex justify-content-between mb-2 opacity-75 fs-7">
                             <span>Subtotal</span>
                             <span>GH₵ <?php echo number_format($subtotal, 2); ?></span>
                         </div>
-                        <hr class="my-3">
+                        <hr class="my-3 opacity-25">
 
                         <div class="mb-3">
-                            <label class="form-label fw-bold text-dark fs-7">MoMo Phone Number *</label>
-                            <div class="input-group mtn-border-focus">
-                                <span class="input-group-text bg-light text-muted fw-semibold fs-7 border-end-0">+233</span>
-                                <input type="tel" id="phone_number" class="form-control rounded-end-3 fs-7 fw-semibold" value="<?php echo htmlspecialchars($student_phone); ?>" placeholder="054XXXXXXX" maxlength="10" required>
+                            <label class="form-label fw-bold fs-7">MoMo Phone Number *</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white text-dark fw-semibold fs-7 border-end-0 border-warning">+233</span>
+                                <input type="tel" id="phone_number" class="form-control rounded-end-3 fs-7 fw-semibold bg-white border-warning text-dark" value="<?php echo htmlspecialchars($student_phone); ?>" placeholder="054XXXXXXX" maxlength="10" required>
                             </div>
                         </div>
 
-                        <div class="d-flex justify-content-between mb-4 fw-bold text-dark fs-5">
+                        <div class="d-flex justify-content-between mb-4 fw-bold fs-5">
                             <span>Total</span>
-                            <span class="text-wine">GH₵ <?php echo number_format($subtotal, 2); ?></span>
+                            <span>GH₵ <?php echo number_format($subtotal, 2); ?></span>
                         </div>
 
                         <?php if ($subtotal > 0): ?>
-                            <button type="button" id="payCartBtn" class="btn btn-mtn btn-lg w-100 rounded-3 fw-semibold fs-6 py-2.5 shadow-sm">
+                            <button type="button" id="payCartBtn" class="btn btn-dark-checkout btn-lg w-100 rounded-3 fs-6 py-2.5 shadow-sm">
                                 <i class="bi bi-phone-vibrate me-1"></i> Proceed to Checkout
                             </button>
                         <?php else: ?>
-                            <a href="books.php" class="btn btn-outline-secondary btn-lg w-100 rounded-3 fw-semibold fs-6">
+                            <a href="books.php" class="btn btn-dark btn-lg w-100 rounded-3 fw-semibold fs-6">
                                 Browse Manuals
                             </a>
                         <?php endif; ?>
