@@ -9,57 +9,51 @@ $error = '';
 
 // Handle Payment Approval / Rejection
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-    if (isset($_POST['csrf_token']) && function_exists('verify_csrf_token') && !verify_csrf_token($_POST['csrf_token'])) {
-        $error = "Invalid session token.";
-    } else {
-        $order_id = intval($_POST['order_id']);
-        $action = $_POST['action']; // 'approve' or 'reject'
+    $order_id = intval($_POST['order_id']);
+    $action = $_POST['action']; // 'approve' or 'reject'
 
-        if ($action === 'approve') {
-            // Update Order Payment Status
-            $o_stmt = $conn->prepare("UPDATE orders SET payment_status = 'Paid' WHERE order_id = ?");
-            $o_stmt->bind_param("i", $order_id);
-            $o_stmt->execute();
-            $o_stmt->close();
+    if ($action === 'approve') {
+        $o_stmt = $conn->prepare("UPDATE orders SET payment_status = 'Paid' WHERE order_id = ?");
+        $o_stmt->bind_param("i", $order_id);
+        $o_stmt->execute();
+        $o_stmt->close();
 
-            // Also check if a payments table entry exists; if not, insert one for tracking
-            $check_pay = $conn->prepare("SELECT payment_id FROM payments WHERE order_id = ?");
-            $check_pay->bind_param("i", $order_id);
-            $check_pay->execute();
-            $res_pay = $check_pay->get_result();
-            if ($res_pay->num_rows > 0) {
-                $up_pay = $conn->prepare("UPDATE payments SET status = 'Approved' WHERE order_id = ?");
-                $up_pay->bind_param("i", $order_id);
-                $up_pay->execute();
-                $up_pay->close();
-            }
-            $check_pay->close();
-
-            $msg = "Payment for Order #ORD-" . sprintf('%04d', $order_id) . " approved successfully!";
-        } elseif ($action === 'reject') {
-            $o_stmt = $conn->prepare("UPDATE orders SET payment_status = 'Rejected' WHERE order_id = ?");
-            $o_stmt->bind_param("i", $order_id);
-            $o_stmt->execute();
-            $o_stmt->close();
-
-            $check_pay = $conn->prepare("SELECT payment_id FROM payments WHERE order_id = ?");
-            $check_pay->bind_param("i", $order_id);
-            $check_pay->execute();
-            $res_pay = $check_pay->get_result();
-            if ($res_pay->num_rows > 0) {
-                $up_pay = $conn->prepare("UPDATE payments SET status = 'Rejected' WHERE order_id = ?");
-                $up_pay->bind_param("i", $order_id);
-                $up_pay->execute();
-                $up_pay->close();
-            }
-            $check_pay->close();
-
-            $msg = "Payment rejected.";
+        $check_pay = $conn->prepare("SELECT payment_id FROM payments WHERE order_id = ?");
+        $check_pay->bind_param("i", $order_id);
+        $check_pay->execute();
+        $res_pay = $check_pay->get_result();
+        if ($res_pay->num_rows > 0) {
+            $up_pay = $conn->prepare("UPDATE payments SET status = 'Approved' WHERE order_id = ?");
+            $up_pay->bind_param("i", $order_id);
+            $up_pay->execute();
+            $up_pay->close();
         }
+        $check_pay->close();
+
+        $msg = "Payment for Order #ORD-" . sprintf('%04d', $order_id) . " approved successfully!";
+    } elseif ($action === 'reject') {
+        $o_stmt = $conn->prepare("UPDATE orders SET payment_status = 'Rejected' WHERE order_id = ?");
+        $o_stmt->bind_param("i", $order_id);
+        $o_stmt->execute();
+        $o_stmt->close();
+
+        $check_pay = $conn->prepare("SELECT payment_id FROM payments WHERE order_id = ?");
+        $check_pay->bind_param("i", $order_id);
+        $check_pay->execute();
+        $res_pay = $check_pay->get_result();
+        if ($res_pay->num_rows > 0) {
+            $up_pay = $conn->prepare("UPDATE payments SET status = 'Rejected' WHERE order_id = ?");
+            $up_pay->bind_param("i", $order_id);
+            $up_pay->execute();
+            $up_pay->close();
+        }
+        $check_pay->close();
+
+        $msg = "Payment rejected.";
     }
 }
 
-// Fetch All Payments directly from orders (with fallback to payments table if populated)
+// Fetch All Payments using correct student columns
 $payments = $conn->query("
     SELECT 
         o.order_id, 
@@ -73,7 +67,7 @@ $payments = $conn->query("
             ELSE 'Pending'
         END AS status,
         o.order_date AS payment_date, 
-        COALESCE(s.fullname, s.username, 'Student') AS fullname, 
+        COALESCE(s.fullname, 'Student') AS fullname, 
         COALESCE(s.index_number, 'N/A') AS index_number, 
         b.title
     FROM orders o
@@ -411,29 +405,6 @@ require_once '../includes/header.php';
                                                     <button type="button" class="btn btn-sm btn-receipt rounded-3 fs-8 py-1 px-2.5" data-bs-toggle="modal" data-bs-target="#receiptModal<?php echo $p['order_id']; ?>">
                                                         <i class="bi bi-file-earmark-image me-1"></i> View Receipt
                                                     </button>
-
-                                                    <div class="modal fade" id="receiptModal<?php echo $p['order_id']; ?>" tabindex="-1" aria-hidden="true">
-                                                        <div class="modal-dialog modal-dialog-centered modal-lg">
-                                                            <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
-                                                                <div class="modal-header bg-light border-bottom py-3 px-4">
-                                                                    <h6 class="modal-title fw-bold text-dark d-flex align-items-center gap-2">
-                                                                        <i class="bi bi-receipt text-wine"></i>
-                                                                        Payment Receipt — Order #ORD-<?php echo sprintf('%04d', $p['order_id']); ?>
-                                                                    </h6>
-                                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                                                </div>
-                                                                <div class="modal-body text-center p-4 bg-dark-subtle">
-                                                                    <img src="../<?php echo htmlspecialchars($p['proof_image']); ?>" alt="Proof Receipt" class="img-fluid rounded-3 shadow-sm" style="max-height: 75vh; object-fit: contain;">
-                                                                </div>
-                                                                <div class="modal-footer bg-white border-top py-2.5 px-4 d-flex justify-content-between align-items-center">
-                                                                    <span class="text-muted fs-8">Txn Ref: <strong><?php echo htmlspecialchars($p['transaction_id']); ?></strong></span>
-                                                                    <a href="../<?php echo htmlspecialchars($p['proof_image']); ?>" target="_blank" class="btn btn-sm btn-outline-secondary rounded-3 fs-8">
-                                                                        <i class="bi bi-box-arrow-up-right me-1"></i> Open Original
-                                                                    </a>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
                                                 <?php else: ?>
                                                     <span class="text-muted fs-8 fst-italic">Online Paystack</span>
                                                 <?php endif; ?>
@@ -460,11 +431,7 @@ require_once '../includes/header.php';
                                             <td class="text-end pe-4">
                                                 <?php if ($p_status === 'pending'): ?>
                                                     <form action="payments.php" method="POST" class="d-inline">
-                                                        <?php if (isset($_SESSION['csrf_token'])): ?>
-                                                            <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
-                                                        <?php endif; ?>
                                                         <input type="hidden" name="order_id" value="<?php echo $p['order_id']; ?>">
-                                                        
                                                         <button type="submit" name="action" value="approve" class="btn btn-sm btn-success rounded-3 fw-semibold px-2.5 py-1 fs-8 me-1" onclick="return confirm('Approve payment for Order #ORD-<?php echo sprintf('%04d', $p['order_id']); ?>?');">
                                                             <i class="bi bi-check-lg me-1"></i> Approve
                                                         </button>
