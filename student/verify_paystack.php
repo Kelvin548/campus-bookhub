@@ -15,9 +15,8 @@ if (!$paystack_secret && isset($_SERVER['PAYSTACK_SECRET_KEY'])) {
     $paystack_secret = $_SERVER['PAYSTACK_SECRET_KEY'];
 }
 
-// Fallback if environment variable isn't read
 if (empty($paystack_secret)) {
-    $paystack_secret = 'sk_live_f9a131faf445d9d31c9ab'; // Your live secret key fallback
+    $paystack_secret = 'sk_live_f9a131faf445d9d31c9ab';
 }
 
 define('PAYSTACK_SECRET_KEY', trim($paystack_secret));
@@ -31,7 +30,6 @@ if (empty($reference)) {
     exit();
 }
 
-// If single book checkout, validate parameters
 $book_id = 0;
 $quantity = 1;
 if (!$is_cart_checkout) {
@@ -75,11 +73,14 @@ if (!$result || !isset($result['status']) || $result['status'] === false) {
 
 // 2. Save Order(s) to Database and Update Stock
 if (isset($result['data']['status']) && $result['data']['status'] === 'success') {
+    // Automatically ensure table columns are wide enough to prevent truncation errors
+    @$conn->query("ALTER TABLE orders MODIFY COLUMN payment_status VARCHAR(50) DEFAULT 'Pending'");
+    @$conn->query("ALTER TABLE orders MODIFY COLUMN collection_status VARCHAR(50) DEFAULT 'Pending'");
+
     $conn->begin_transaction();
 
     try {
         if ($is_cart_checkout) {
-            // Fetch all items currently in the student's cart
             $cart_stmt = $conn->prepare("SELECT c.*, b.price FROM cart c JOIN books b ON c.book_id = b.book_id WHERE c.student_id = ?");
             $cart_stmt->bind_param("i", $student_id);
             $cart_stmt->execute();
@@ -94,13 +95,11 @@ if (isset($result['data']['status']) && $result['data']['status'] === 'success')
                 $item_book_id = $item['book_id'];
                 $item_qty = $item['quantity'];
 
-                // Insert into orders table
                 $ord_stmt = $conn->prepare("INSERT INTO orders (student_id, book_id, quantity, total_amount, payment_reference, payment_status, collection_status, order_date) VALUES (?, ?, ?, ?, ?, 'Paid', 'Pending', NOW())");
                 $ord_stmt->bind_param("iiids", $student_id, $item_book_id, $item_qty, $item_total, $reference);
                 $ord_stmt->execute();
                 $ord_stmt->close();
 
-                // Decrement stock for each book in cart
                 $update_stock = $conn->prepare("UPDATE books SET stock = GREATEST(0, stock - ?) WHERE book_id = ?");
                 $update_stock->bind_param("ii", $item_qty, $item_book_id);
                 $update_stock->execute();
@@ -108,22 +107,19 @@ if (isset($result['data']['status']) && $result['data']['status'] === 'success')
             }
             $cart_stmt->close();
 
-            // Clear the cart after successful checkout
             $clear_stmt = $conn->prepare("DELETE FROM cart WHERE student_id = ?");
             $clear_stmt->bind_param("i", $student_id);
             $clear_stmt->execute();
             $clear_stmt->close();
 
         } else {
-            // Single book checkout flow
-            $amount_paid_ghc = $result['data']['amount'] / 100; // Convert pesewas to GHS
+            $amount_paid_ghc = $result['data']['amount'] / 100;
 
             $stmt = $conn->prepare("INSERT INTO orders (student_id, book_id, quantity, total_amount, payment_reference, payment_status, collection_status, order_date) VALUES (?, ?, ?, ?, ?, 'Paid', 'Pending', NOW())");
             $stmt->bind_param("iiids", $student_id, $book_id, $quantity, $amount_paid_ghc, $reference);
             $stmt->execute();
             $stmt->close();
 
-            // Decrement book stock count
             $update_stock = $conn->prepare("UPDATE books SET stock = GREATEST(0, stock - ?) WHERE book_id = ?");
             $update_stock->bind_param("ii", $quantity, $book_id);
             $update_stock->execute();
