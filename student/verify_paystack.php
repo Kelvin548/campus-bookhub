@@ -6,8 +6,8 @@ require_student();
 
 header('Content-Type: application/json');
 
-// Working Paystack Secret Key
-define('PAYSTACK_SECRET_KEY', trim('sk_test_0c6b27306dc36215874694b5d3df9d58f36d050f')); 
+// Using secure environment variable with fallback placeholder
+define('PAYSTACK_SECRET_KEY', trim(getenv('PAYSTACK_SECRET_KEY') ?: 'sk_live_YOUR_KEY_HERE'));
 
 $reference = trim($_POST['reference'] ?? '');
 $is_cart_checkout = isset($_POST['is_cart_checkout']) && $_POST['is_cart_checkout'] === '1';
@@ -18,7 +18,7 @@ if (empty($reference)) {
     exit();
 }
 
-// If it's a single book checkout, validate book_id and quantity
+// If single book checkout, validate parameters
 $book_id = 0;
 $quantity = 1;
 if (!$is_cart_checkout) {
