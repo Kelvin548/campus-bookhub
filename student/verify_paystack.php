@@ -6,8 +6,21 @@ require_student();
 
 header('Content-Type: application/json');
 
-// Using secure environment variable with fallback placeholder
-define('PAYSTACK_SECRET_KEY', trim(getenv('PAYSTACK_SECRET_KEY') ?: 'sk_live_YOUR_KEY_HERE'));
+// Robustly check all environment variable sources on Railway
+$paystack_secret = getenv('PAYSTACK_SECRET_KEY');
+if (!$paystack_secret && isset($_ENV['PAYSTACK_SECRET_KEY'])) {
+    $paystack_secret = $_ENV['PAYSTACK_SECRET_KEY'];
+}
+if (!$paystack_secret && isset($_SERVER['PAYSTACK_SECRET_KEY'])) {
+    $paystack_secret = $_SERVER['PAYSTACK_SECRET_KEY'];
+}
+
+// Fallback if environment variable isn't read
+if (empty($paystack_secret)) {
+    $paystack_secret = 'sk_live_f9a131faf445d9d31c9ab'; // Your live secret key fallback
+}
+
+define('PAYSTACK_SECRET_KEY', trim($paystack_secret));
 
 $reference = trim($_POST['reference'] ?? '');
 $is_cart_checkout = isset($_POST['is_cart_checkout']) && $_POST['is_cart_checkout'] === '1';
