@@ -23,17 +23,16 @@ if (!function_exists('get_status_badge_class')) {
     }
 }
 
-// Single aggregated query for metrics
+// Single aggregated query for metrics directly from orders, books, and students
 $metrics_query = "
     SELECT 
         (SELECT COUNT(*) FROM books) AS total_books,
         (SELECT COUNT(*) FROM students) AS total_students,
         (SELECT COUNT(*) FROM orders) AS total_orders,
         (SELECT COUNT(*) FROM orders WHERE collection_status = 'Collected') AS collected_books,
-        IFNULL(SUM(CASE WHEN status = 'Pending' THEN 1 ELSE 0 END), 0) AS pending_payments,
-        IFNULL(SUM(CASE WHEN status = 'Approved' THEN 1 ELSE 0 END), 0) AS verified_payments,
-        IFNULL(SUM(CASE WHEN status = 'Approved' THEN amount ELSE 0 END), 0.00) AS total_revenue
-    FROM payments
+        (SELECT COUNT(*) FROM orders WHERE payment_status = 'Pending') AS pending_payments,
+        (SELECT COUNT(*) FROM orders WHERE payment_status = 'Paid') AS verified_payments,
+        (SELECT IFNULL(SUM(total_amount), 0.00) FROM orders WHERE payment_status = 'Paid') AS total_revenue
 ";
 
 $metrics_result = $conn->query($metrics_query);
