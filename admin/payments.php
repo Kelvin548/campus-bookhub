@@ -9,51 +9,78 @@ $error = '';
 
 // Handle Payment Approval / Rejection
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+    if (isset($_POST['csrf_token']) && function_exists('verify_csrf_token') && !verify_csrf_token($_POST['csrf_token'])) {
         $error = "Invalid session token.";
     } else {
-        $payment_id = intval($_POST['payment_id']);
         $order_id = intval($_POST['order_id']);
         $action = $_POST['action']; // 'approve' or 'reject'
 
         if ($action === 'approve') {
-            // Update Payment Status
-            $p_stmt = $conn->prepare("UPDATE payments SET status = 'Approved' WHERE payment_id = ?");
-            $p_stmt->bind_param("i", $payment_id);
-            $p_stmt->execute();
-            $p_stmt->close();
-
             // Update Order Payment Status
-            $o_stmt = $conn->prepare("UPDATE orders SET payment_status = 'Verified' WHERE order_id = ?");
+            $o_stmt = $conn->prepare("UPDATE orders SET payment_status = 'Paid' WHERE order_id = ?");
             $o_stmt->bind_param("i", $order_id);
             $o_stmt->execute();
             $o_stmt->close();
 
+            // Also check if a payments table entry exists; if not, insert one for tracking
+            $check_pay = $conn->prepare("SELECT payment_id FROM payments WHERE order_id = ?");
+            $check_pay->bind_param("i", $order_id);
+            $check_pay->execute();
+            $res_pay = $check_pay->get_result();
+            if ($res_pay->num_rows > 0) {
+                $up_pay = $conn->prepare("UPDATE payments SET status = 'Approved' WHERE order_id = ?");
+                $up_pay->bind_param("i", $order_id);
+                $up_pay->execute();
+                $up_pay->close();
+            }
+            $check_pay->close();
+
             $msg = "Payment for Order #ORD-" . sprintf('%04d', $order_id) . " approved successfully!";
         } elseif ($action === 'reject') {
-            $p_stmt = $conn->prepare("UPDATE payments SET status = 'Rejected' WHERE payment_id = ?");
-            $p_stmt->bind_param("i", $payment_id);
-            $p_stmt->execute();
-            $p_stmt->close();
-
             $o_stmt = $conn->prepare("UPDATE orders SET payment_status = 'Rejected' WHERE order_id = ?");
             $o_stmt->bind_param("i", $order_id);
             $o_stmt->execute();
             $o_stmt->close();
+
+            $check_pay = $conn->prepare("SELECT payment_id FROM payments WHERE order_id = ?");
+            $check_pay->bind_param("i", $order_id);
+            $check_pay->execute();
+            $res_pay = $check_pay->get_result();
+            if ($res_pay->num_rows > 0) {
+                $up_pay = $conn->prepare("UPDATE payments SET status = 'Rejected' WHERE order_id = ?");
+                $up_pay->bind_param("i", $order_id);
+                $up_pay->execute();
+                $up_pay->close();
+            }
+            $check_pay->close();
 
             $msg = "Payment rejected.";
         }
     }
 }
 
-// Fetch All Payments
+// Fetch All Payments directly from orders (with fallback to payments table if populated)
 $payments = $conn->query("
-    SELECT p.payment_id, p.order_id, p.transaction_id, p.payment_method, p.amount, p.proof_image, p.status, p.payment_date, s.fullname, s.index_number, b.title
-    FROM payments p
-    JOIN orders o ON p.order_id = o.order_id
-    JOIN students s ON o.student_id = s.student_id
-    JOIN books b ON o.book_id = b.book_id
-    ORDER BY p.payment_date DESC
+    SELECT 
+        o.order_id, 
+        o.payment_reference AS transaction_id, 
+        'Paystack / Online' AS payment_method, 
+        o.total_amount AS amount, 
+        COALESCE(p.proof_image, '') AS proof_image, 
+        CASE 
+            WHEN o.payment_status = 'Paid' THEN 'Approved'
+            WHEN o.payment_status = 'Rejected' THEN 'Rejected'
+            ELSE 'Pending'
+        END AS status,
+        o.order_date AS payment_date, 
+        COALESCE(s.fullname, s.username, 'Student') AS fullname, 
+        COALESCE(s.index_number, 'N/A') AS index_number, 
+        b.title
+    FROM orders o
+    LEFT JOIN payments p ON o.order_id = p.order_id
+    LEFT JOIN students s ON o.student_id = s.student_id
+    LEFT JOIN books b ON o.book_id = b.book_id
+    ORDER BY o.order_date DESC
 ");
 
 $page_title = "Manage Payments - Campus BookHub";
@@ -308,7 +335,7 @@ require_once '../includes/header.php';
                 <div class="d-flex align-items-center gap-3 ms-auto">
                     <div class="badge bg-white text-dark border px-3 py-2 rounded-3 shadow-sm d-flex align-items-center gap-2 fs-7">
                         <i class="bi bi-person-circle text-wine fs-6"></i>
-                        <span class="fw-semibold d-none d-sm-inline"><?php echo htmlspecialchars($_SESSION['fullname']); ?></span>
+                        <span class="fw-semibold d-none d-sm-inline"><?php echo htmlspecialchars($_SESSION['fullname'] ?? 'Administrator'); ?></span>
                     </div>
                 </div>
             </div>
@@ -319,7 +346,7 @@ require_once '../includes/header.php';
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <div>
                     <h3 class="fw-bold text-dark mb-1 fs-4 fs-sm-3">Manual Payment Verifications</h3>
-                    <p class="text-muted fs-7 mb-0">Cross-reference uploaded Mobile Money / Bank screenshots against receipts.</p>
+                    <p class="text-muted fs-7 mb-0">Cross-reference online orders and transaction references.</p>
                 </div>
             </div>
 
@@ -350,7 +377,7 @@ require_once '../includes/header.php';
                         <table class="table table-custom align-middle mb-0">
                             <thead>
                                 <tr>
-                                    <th class="ps-4">Txn ID</th>
+                                    <th class="ps-4">Txn Ref</th>
                                     <th>Order</th>
                                     <th>Student</th>
                                     <th>Book Title</th>
@@ -366,10 +393,10 @@ require_once '../includes/header.php';
                                     <?php while ($p = $payments->fetch_assoc()): ?>
                                         <?php $p_status = strtolower(trim($p['status'] ?? '')); ?>
                                         <tr>
-                                            <td class="ps-4 fw-bold"><code><?php echo htmlspecialchars($p['transaction_id']); ?></code></td>
+                                            <td class="ps-4 fw-bold"><code><?php echo htmlspecialchars($p['transaction_id'] ?: 'N/A'); ?></code></td>
                                             <td class="fw-bold text-wine">#ORD-<?php echo sprintf('%04d', $p['order_id']); ?></td>
                                             <td class="fw-semibold text-dark"><?php echo htmlspecialchars($p['fullname']); ?></td>
-                                            <td class="fw-medium text-dark"><?php echo htmlspecialchars($p['title']); ?></td>
+                                            <td class="fw-medium text-dark"><?php echo htmlspecialchars($p['title'] ?? 'Manual / Item'); ?></td>
                                             <td>
                                                 <span class="badge bg-light text-dark border px-2.5 py-1 rounded-2 fs-8">
                                                     <i class="bi bi-credit-card-2-front me-1 text-muted"></i>
@@ -378,15 +405,14 @@ require_once '../includes/header.php';
                                             </td>
                                             <td class="fw-bold text-dark">GH₵ <?php echo number_format($p['amount'], 2); ?></td>
                                             
-                                            <!-- Proof Screenshot Column with Modal Trigger -->
+                                            <!-- Proof Screenshot Column -->
                                             <td>
                                                 <?php if (!empty($p['proof_image']) && file_exists('../' . $p['proof_image'])): ?>
-                                                    <button type="button" class="btn btn-sm btn-receipt rounded-3 fs-8 py-1 px-2.5" data-bs-toggle="modal" data-bs-target="#receiptModal<?php echo $p['payment_id']; ?>">
+                                                    <button type="button" class="btn btn-sm btn-receipt rounded-3 fs-8 py-1 px-2.5" data-bs-toggle="modal" data-bs-target="#receiptModal<?php echo $p['order_id']; ?>">
                                                         <i class="bi bi-file-earmark-image me-1"></i> View Receipt
                                                     </button>
 
-                                                    <!-- Receipt Lightbox Modal -->
-                                                    <div class="modal fade" id="receiptModal<?php echo $p['payment_id']; ?>" tabindex="-1" aria-hidden="true">
+                                                    <div class="modal fade" id="receiptModal<?php echo $p['order_id']; ?>" tabindex="-1" aria-hidden="true">
                                                         <div class="modal-dialog modal-dialog-centered modal-lg">
                                                             <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
                                                                 <div class="modal-header bg-light border-bottom py-3 px-4">
@@ -400,7 +426,7 @@ require_once '../includes/header.php';
                                                                     <img src="../<?php echo htmlspecialchars($p['proof_image']); ?>" alt="Proof Receipt" class="img-fluid rounded-3 shadow-sm" style="max-height: 75vh; object-fit: contain;">
                                                                 </div>
                                                                 <div class="modal-footer bg-white border-top py-2.5 px-4 d-flex justify-content-between align-items-center">
-                                                                    <span class="text-muted fs-8">Txn ID: <strong><?php echo htmlspecialchars($p['transaction_id']); ?></strong></span>
+                                                                    <span class="text-muted fs-8">Txn Ref: <strong><?php echo htmlspecialchars($p['transaction_id']); ?></strong></span>
                                                                     <a href="../<?php echo htmlspecialchars($p['proof_image']); ?>" target="_blank" class="btn btn-sm btn-outline-secondary rounded-3 fs-8">
                                                                         <i class="bi bi-box-arrow-up-right me-1"></i> Open Original
                                                                     </a>
@@ -409,7 +435,7 @@ require_once '../includes/header.php';
                                                         </div>
                                                     </div>
                                                 <?php else: ?>
-                                                    <span class="text-muted fs-8 fst-italic">No Screenshot</span>
+                                                    <span class="text-muted fs-8 fst-italic">Online Paystack</span>
                                                 <?php endif; ?>
                                             </td>
 
@@ -434,8 +460,9 @@ require_once '../includes/header.php';
                                             <td class="text-end pe-4">
                                                 <?php if ($p_status === 'pending'): ?>
                                                     <form action="payments.php" method="POST" class="d-inline">
-                                                        <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
-                                                        <input type="hidden" name="payment_id" value="<?php echo $p['payment_id']; ?>">
+                                                        <?php if (isset($_SESSION['csrf_token'])): ?>
+                                                            <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                                                        <?php endif; ?>
                                                         <input type="hidden" name="order_id" value="<?php echo $p['order_id']; ?>">
                                                         
                                                         <button type="submit" name="action" value="approve" class="btn btn-sm btn-success rounded-3 fw-semibold px-2.5 py-1 fs-8 me-1" onclick="return confirm('Approve payment for Order #ORD-<?php echo sprintf('%04d', $p['order_id']); ?>?');">
