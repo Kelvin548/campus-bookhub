@@ -86,8 +86,27 @@ require_once '../includes/header.php';
     .top-navbar { background-color: #ffffff; border-bottom: 1px solid #eae2e4; height: 70px; }
     .text-wine { color: var(--wine-main) !important; }
     .bg-wine-subtle { background-color: rgba(107, 29, 47, 0.08) !important; color: var(--wine-main) !important; }
-    .btn-wine { background: var(--wine-gradient); color: #ffffff !important; border: none; }
-    .btn-wine:hover { background: var(--wine-gradient-card); color: #ffffff !important; }
+
+    /* MTN Yellow Checkout Button & Focus Styling */
+    .btn-mtn {
+        background-color: #FFCC00 !important;
+        color: #000000 !important;
+        font-weight: 700 !important;
+        border: none !important;
+        transition: all 0.3s ease !important;
+    }
+
+    .btn-mtn:hover {
+        background-color: #E6B800 !important;
+        color: #000000 !important;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 15px rgba(255, 204, 0, 0.4) !important;
+    }
+
+    .mtn-border-focus:focus-within {
+        border-color: #FFCC00 !important;
+        box-shadow: 0 0 0 3px rgba(255, 204, 0, 0.25) !important;
+    }
 
     /* Mobile Drawer Overlay */
     .sidebar-overlay {
@@ -227,7 +246,7 @@ require_once '../includes/header.php';
 
                         <div class="mb-3">
                             <label class="form-label fw-bold text-dark fs-7">MoMo Phone Number *</label>
-                            <div class="input-group">
+                            <div class="input-group mtn-border-focus">
                                 <span class="input-group-text bg-light text-muted fw-semibold fs-7 border-end-0">+233</span>
                                 <input type="tel" id="phone_number" class="form-control rounded-end-3 fs-7 fw-semibold" value="<?php echo htmlspecialchars($student_phone); ?>" placeholder="054XXXXXXX" maxlength="10" required>
                             </div>
@@ -239,7 +258,7 @@ require_once '../includes/header.php';
                         </div>
 
                         <?php if ($subtotal > 0): ?>
-                            <button type="button" id="payCartBtn" class="btn btn-wine btn-lg w-100 rounded-3 fw-semibold fs-6 py-2.5">
+                            <button type="button" id="payCartBtn" class="btn btn-mtn btn-lg w-100 rounded-3 fw-semibold fs-6 py-2.5 shadow-sm">
                                 <i class="bi bi-phone-vibrate me-1"></i> Proceed to Checkout
                             </button>
                         <?php else: ?>
