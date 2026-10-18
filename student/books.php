@@ -61,11 +61,16 @@ require_once '../includes/header.php';
     }
 
     body { font-family: var(--font-family); background-color: #f6f3f4; color: #2b2b2b; overflow-x: hidden; }
+    
     #wrapper { display: flex; width: 100%; min-height: 100vh; position: relative; }
+    
+    /* Sidebar Default Desktop */
     #sidebar-wrapper {
         width: 260px; min-width: 260px; background: var(--sidebar-bg) !important;
-        min-height: 100vh; border-right: 1px solid rgba(255, 255, 255, 0.05) !important; z-index: 1050;
+        min-height: 100vh; border-right: 1px solid rgba(255, 255, 255, 0.05) !important; 
+        transition: all 0.3s ease-in-out; z-index: 1050;
     }
+
     .sidebar-brand-box { background: rgba(255, 255, 255, 0.03); border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
     .sidebar-logo-img { max-height: 48px; object-fit: contain; background: #ffffff; padding: 4px 8px; border-radius: 10px; }
     .sidebar-link {
@@ -74,6 +79,7 @@ require_once '../includes/header.php';
     }
     .sidebar-link:hover { background: rgba(255, 255, 255, 0.08) !important; color: #ffffff !important; }
     .sidebar-link.active { background: var(--wine-gradient-card) !important; color: #ffffff !important; font-weight: 600; }
+    
     #page-content-wrapper { flex: 1; width: 100%; min-width: 0; }
     .top-navbar { background-color: #ffffff; border-bottom: 1px solid #eae2e4; height: 70px; }
     .text-wine { color: var(--wine-main) !important; }
@@ -81,8 +87,32 @@ require_once '../includes/header.php';
     .border-wine-subtle { border-color: rgba(107, 29, 47, 0.2) !important; }
     .btn-wine { background: var(--wine-gradient); color: #ffffff !important; border: none; }
     .btn-wine:hover { background: var(--wine-gradient-card); color: #ffffff !important; }
+    
     .book-card { transition: transform 0.25s ease, box-shadow 0.25s ease; }
     .book-card:hover { transform: translateY(-5px); box-shadow: 0 12px 24px rgba(107, 29, 47, 0.12) !important; }
+
+    /* Mobile Drawer Overlay */
+    .sidebar-overlay {
+        display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+        background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(2px); z-index: 1040;
+    }
+
+    /* Responsive Mobile Breakpoint (<992px) */
+    @media (max-width: 991.98px) {
+        #sidebar-wrapper {
+            position: fixed; top: 0; bottom: 0; left: 0;
+            margin-left: -260px; /* Hide sidebar off-screen by default on mobile */
+            box-shadow: 4px 0 25px rgba(0, 0, 0, 0.3);
+        }
+
+        #wrapper.toggled #sidebar-wrapper {
+            margin-left: 0; /* Slide in when toggled */
+        }
+
+        #wrapper.toggled .sidebar-overlay {
+            display: block;
+        }
+    }
 </style>
 
 <div id="wrapper">
@@ -154,11 +184,20 @@ require_once '../includes/header.php';
             <!-- Catalog Grid -->
             <div class="row g-4">
                 <?php if ($books && $books->num_rows > 0): ?>
-                    <?php while ($book = $books->fetch_assoc()): ?>
+                    <?php while ($book = $books->fetch_assoc()): 
+                        // Robust Image Path Resolution
+                        $img_path = $book['image'] ?? '';
+                        $img_path = ltrim($img_path, './');
+                        if (strpos($img_path, 'uploads/') !== 0) {
+                            $img_path = 'uploads/' . ltrim($img_path, '/');
+                        }
+                        $full_img_url = '../' . $img_path;
+                        $absolute_file_check = '../' . ltrim($book['image'] ?? '', './');
+                    ?>
                         <div class="col-md-6 col-lg-4 col-xl-3">
                             <div class="card h-100 border-0 shadow-sm rounded-4 overflow-hidden bg-white book-card">
-                                <?php if (!empty($book['image'])): ?>
-                                    <img src="../<?php echo htmlspecialchars($book['image']); ?>" class="card-img-top bg-light p-2" style="height: 190px; object-fit: contain;" alt="Book Cover">
+                                <?php if (!empty($book['image']) && file_exists($absolute_file_check)): ?>
+                                    <img src="<?php echo htmlspecialchars($full_img_url); ?>" class="card-img-top bg-light p-2" style="height: 190px; object-fit: contain;" alt="Book Cover">
                                 <?php else: ?>
                                     <div class="bg-wine-subtle card-img-top d-flex align-items-center justify-content-center" style="height: 190px;">
                                         <i class="bi bi-book display-4 text-wine"></i>
@@ -220,8 +259,18 @@ document.addEventListener("DOMContentLoaded", function () {
     const wrapper = document.getElementById('wrapper');
     const sidebarToggle = document.getElementById('sidebarToggle');
     const sidebarOverlay = document.getElementById('sidebarOverlay');
+
     if (sidebarToggle) {
-        sidebarToggle.addEventListener('click', (e) => { e.preventDefault(); wrapper.classList.toggle('toggled'); });
+        sidebarToggle.addEventListener('click', function (e) {
+            e.preventDefault();
+            wrapper.classList.toggle('toggled');
+        });
+    }
+
+    if (sidebarOverlay) {
+        sidebarOverlay.addEventListener('click', function () {
+            wrapper.classList.remove('toggled');
+        });
     }
 });
 </script>
