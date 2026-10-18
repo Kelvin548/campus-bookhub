@@ -6,17 +6,29 @@ require_student();
 
 header('Content-Type: application/json');
 
-// Make sure your working secret key (sk_test_0c...) is pasted here:
+// Working Paystack Secret Key
 define('PAYSTACK_SECRET_KEY', trim('sk_test_0c6b27306dc36215874694b5d3df9d58f36d050f')); 
 
-$reference = $_POST['reference'] ?? '';
-$book_id   = intval($_POST['book_id'] ?? 0);
-$quantity  = intval($_POST['quantity'] ?? 1);
+$reference = trim($_POST['reference'] ?? '');
+$is_cart_checkout = isset($_POST['is_cart_checkout']) && $_POST['is_cart_checkout'] === '1';
 $student_id = $_SESSION['user_id'];
 
-if (empty($reference) || $book_id <= 0 || $quantity <= 0) {
-    echo json_encode(['success' => false, 'message' => 'Missing transaction parameters.']);
+if (empty($reference)) {
+    echo json_encode(['success' => false, 'message' => 'Missing transaction reference.']);
     exit();
+}
+
+// If it's a single book checkout, validate book_id and quantity
+$book_id = 0;
+$quantity = 1;
+if (!$is_cart_checkout) {
+    $book_id  = intval($_POST['book_id'] ?? 0);
+    $quantity = intval($_POST['quantity'] ?? 1);
+
+    if ($book_id <= 0 || $quantity <= 0) {
+        echo json_encode(['success' => false, 'message' => 'Missing transaction parameters.']);
+        exit();
+    }
 }
 
 // 1. Verify Payment with Paystack API
@@ -29,7 +41,6 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, [
     "Authorization: Bearer " . PAYSTACK_SECRET_KEY,
     "Cache-Control: no-cache"
 ]);
-
 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 
 $response = curl_exec($ch);
@@ -49,25 +60,62 @@ if (!$result || !isset($result['status']) || $result['status'] === false) {
     exit();
 }
 
-// 2. Save Order to Database and Update Stock
+// 2. Save Order(s) to Database and Update Stock
 if (isset($result['data']['status']) && $result['data']['status'] === 'success') {
-    $amount_paid_ghc = $result['data']['amount'] / 100; // Convert pesewas to GHS
-
     $conn->begin_transaction();
 
     try {
-        // Aligned with Campus BookHub database columns:
-        // (student_id, book_id, quantity, total_amount, payment_reference, payment_status, collection_status, order_date)
-        $stmt = $conn->prepare("INSERT INTO orders (student_id, book_id, quantity, total_amount, payment_reference, payment_status, collection_status, order_date) VALUES (?, ?, ?, ?, ?, 'Paid', 'Pending', NOW())");
-        $stmt->bind_param("iiids", $student_id, $book_id, $quantity, $amount_paid_ghc, $reference);
-        $stmt->execute();
-        $stmt->close();
+        if ($is_cart_checkout) {
+            // Fetch all items currently in the student's cart
+            $cart_stmt = $conn->prepare("SELECT c.*, b.price FROM cart c JOIN books b ON c.book_id = b.book_id WHERE c.student_id = ?");
+            $cart_stmt->bind_param("i", $student_id);
+            $cart_stmt->execute();
+            $cart_items = $cart_stmt->get_result();
 
-        // Decrement book stock count
-        $update_stock = $conn->prepare("UPDATE books SET stock = GREATEST(0, stock - ?) WHERE book_id = ?");
-        $update_stock->bind_param("ii", $quantity, $book_id);
-        $update_stock->execute();
-        $update_stock->close();
+            if ($cart_items->num_rows === 0) {
+                throw new Exception("Your cart is empty.");
+            }
+
+            while ($item = $cart_items->fetch_assoc()) {
+                $item_total = $item['price'] * $item['quantity'];
+                $item_book_id = $item['book_id'];
+                $item_qty = $item['quantity'];
+
+                // Insert into orders table
+                $ord_stmt = $conn->prepare("INSERT INTO orders (student_id, book_id, quantity, total_amount, payment_reference, payment_status, collection_status, order_date) VALUES (?, ?, ?, ?, ?, 'Paid', 'Pending', NOW())");
+                $ord_stmt->bind_param("iiids", $student_id, $item_book_id, $item_qty, $item_total, $reference);
+                $ord_stmt->execute();
+                $ord_stmt->close();
+
+                // Decrement stock for each book in cart
+                $update_stock = $conn->prepare("UPDATE books SET stock = GREATEST(0, stock - ?) WHERE book_id = ?");
+                $update_stock->bind_param("ii", $item_qty, $item_book_id);
+                $update_stock->execute();
+                $update_stock->close();
+            }
+            $cart_stmt->close();
+
+            // Clear the cart after successful checkout
+            $clear_stmt = $conn->prepare("DELETE FROM cart WHERE student_id = ?");
+            $clear_stmt->bind_param("i", $student_id);
+            $clear_stmt->execute();
+            $clear_stmt->close();
+
+        } else {
+            // Single book checkout flow
+            $amount_paid_ghc = $result['data']['amount'] / 100; // Convert pesewas to GHS
+
+            $stmt = $conn->prepare("INSERT INTO orders (student_id, book_id, quantity, total_amount, payment_reference, payment_status, collection_status, order_date) VALUES (?, ?, ?, ?, ?, 'Paid', 'Pending', NOW())");
+            $stmt->bind_param("iiids", $student_id, $book_id, $quantity, $amount_paid_ghc, $reference);
+            $stmt->execute();
+            $stmt->close();
+
+            // Decrement book stock count
+            $update_stock = $conn->prepare("UPDATE books SET stock = GREATEST(0, stock - ?) WHERE book_id = ?");
+            $update_stock->bind_param("ii", $quantity, $book_id);
+            $update_stock->execute();
+            $update_stock->close();
+        }
 
         $conn->commit();
 
