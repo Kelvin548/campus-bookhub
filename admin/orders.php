@@ -290,10 +290,6 @@ require_once '../includes/header.php';
         z-index: 1040;
     }
 
-    .hidden-order-row {
-        display: none;
-    }
-
     /* Responsive Queries */
     @media (max-width: 991.98px) {
         #sidebar-wrapper {
@@ -512,9 +508,9 @@ require_once '../includes/header.php';
                                             $c_status = strtolower(trim($ord['collection_status'] ?? ''));
                                             $is_verified = ($p_status === 'verified' || $p_status === 'paid');
                                             $is_collected = ($c_status === 'collected');
-                                            $is_hidden = ($index >= 20); // Hide items beyond top 20
+                                            $is_hidden = ($index >= 20); // Hide items beyond top 20 initially
                                         ?>
-                                        <tr class="order-row <?php echo $is_hidden ? 'hidden-order-row' : ''; ?>" data-index="<?php echo htmlspecialchars($ord['index_number']); ?>" data-name="<?php echo htmlspecialchars(strtolower($ord['fullname'])); ?>" data-ordid="#ORD-<?php echo sprintf('%04d', $ord['order_id']); ?>">
+                                        <tr class="order-row" style="<?php echo $is_hidden ? 'display: none;' : ''; ?>" data-index="<?php echo htmlspecialchars($ord['index_number']); ?>" data-name="<?php echo htmlspecialchars(strtolower($ord['fullname'])); ?>" data-ordid="#ORD-<?php echo sprintf('%04d', $ord['order_id']); ?>">
                                             <td class="ps-4 fw-bold text-wine">#ORD-<?php echo sprintf('%04d', $ord['order_id']); ?></td>
                                             <td class="fw-semibold text-dark"><?php echo htmlspecialchars($ord['fullname']); ?></td>
                                             <td><code class="px-2 py-1 bg-light rounded text-dark border fs-8 fw-bold"><?php echo htmlspecialchars($ord['index_number']); ?></code></td>
@@ -652,10 +648,19 @@ require_once '../includes/header.php';
                     const name = row.getAttribute('data-name').toLowerCase();
                     const ordId = row.getAttribute('data-ordid').toLowerCase();
 
-                    if (indexNum.includes(query) || name.includes(query) || ordId.includes(query)) {
-                        row.style.display = '';
+                    if (query !== '') {
+                        if (indexNum.includes(query) || name.includes(query) || ordId.includes(query)) {
+                            row.style.display = '';
+                        } else {
+                            row.style.display = 'none';
+                        }
                     } else {
-                        row.style.display = 'none';
+                        // Restore default view state when search box is empty
+                        if (index >= 20 && !isExpanded) {
+                            row.style.display = 'none';
+                        } else {
+                            row.style.display = '';
+                        }
                     }
                 });
 
@@ -663,12 +668,6 @@ require_once '../includes/header.php';
                     if (loadMoreContainer) loadMoreContainer.style.display = 'none';
                 } else {
                     if (loadMoreContainer) loadMoreContainer.style.display = 'block';
-                    // Re-apply 20 limit if search cleared
-                    orderRows.forEach((row, index) => {
-                        if (index >= 20 && !isExpanded) {
-                            row.style.display = 'none';
-                        }
-                    });
                 }
             });
         }
@@ -677,10 +676,11 @@ require_once '../includes/header.php';
         if (toggleBtn) {
             toggleBtn.addEventListener('click', function () {
                 isExpanded = !isExpanded;
-                const hiddenRows = document.querySelectorAll('.hidden-order-row');
 
-                hiddenRows.forEach(row => {
-                    row.style.display = isExpanded ? '' : 'none';
+                orderRows.forEach((row, index) => {
+                    if (index >= 20) {
+                        row.style.display = isExpanded ? '' : 'none';
+                    }
                 });
 
                 toggleBtn.textContent = isExpanded ? 'Collapse Older Orders' : 'Show Older Orders (<?php echo count($all_orders) - 20; ?> Hidden)';
