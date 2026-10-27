@@ -80,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
 // Fetch Orders
 $orders_result = $conn->query("
-    SELECT o.order_id, s.fullname, s.index_number, s.phone, b.title, o.quantity, o.total_amount, o.payment_status, o.collection_status, o.order_date
+    SELECT o.order_id, o.book_id, s.fullname, s.index_number, s.phone, b.title, o.quantity, o.total_amount, o.payment_status, o.collection_status, o.order_date
     FROM orders o
     JOIN students s ON o.student_id = s.student_id
     JOIN books b ON o.book_id = b.book_id
@@ -436,7 +436,7 @@ require_once '../includes/header.php';
                                     <th>Book Title</th>
                                     <th>Price</th>
                                     <th>Total Units Ordered</th>
-                                    <th class="text-end pe-4">Total Order Transactions</th>
+                                    <th class="text-end pe-4">Actions / Transactions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -451,7 +451,11 @@ require_once '../includes/header.php';
                                                     <?php echo $bs['total_quantity']; ?> Units
                                                 </span>
                                             </td>
-                                            <td class="text-end pe-4 fw-bold text-wine"><?php echo $bs['total_orders_count']; ?> Orders</td>
+                                            <td class="text-end pe-4">
+                                                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1 fw-semibold fs-8 filter-book-btn" data-book-id="<?php echo $bs['book_id']; ?>" data-book-title="<?php echo htmlspecialchars($bs['title']); ?>">
+                                                    <i class="bi bi-funnel-fill me-1 text-wine"></i> View <?php echo $bs['total_orders_count']; ?> Orders
+                                                </button>
+                                            </td>
                                         </tr>
                                     <?php endwhile; ?>
                                 <?php else: ?>
@@ -465,6 +469,17 @@ require_once '../includes/header.php';
                         </table>
                     </div>
                 </div>
+            </div>
+
+            <!-- Active Filter Alert Banner (Hidden by default) -->
+            <div id="activeFilterBanner" class="alert alert-secondary rounded-4 shadow-sm mb-4 d-none align-items-center justify-content-between px-4 py-3">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-filter-circle-fill text-wine fs-5"></i>
+                    <span>Showing orders for book: <strong id="filteredBookName" class="text-dark"></strong></span>
+                </div>
+                <button type="button" id="clearFilterBtn" class="btn btn-sm btn-outline-dark rounded-pill px-3 fw-semibold fs-8">
+                    <i class="bi bi-x-lg me-1"></i> Show All Orders
+                </button>
             </div>
 
             <!-- Orders Table Card with Search & Limit Toggle -->
@@ -510,7 +525,7 @@ require_once '../includes/header.php';
                                             $is_collected = ($c_status === 'collected');
                                             $is_hidden = ($index >= 20); // Hide items beyond top 20 initially
                                         ?>
-                                        <tr class="order-row" style="<?php echo $is_hidden ? 'display: none;' : ''; ?>" data-index="<?php echo htmlspecialchars($ord['index_number']); ?>" data-name="<?php echo htmlspecialchars(strtolower($ord['fullname'])); ?>" data-ordid="#ORD-<?php echo sprintf('%04d', $ord['order_id']); ?>">
+                                        <tr class="order-row" style="<?php echo $is_hidden ? 'display: none;' : ''; ?>" data-bookid="<?php echo $ord['book_id']; ?>" data-index="<?php echo htmlspecialchars($ord['index_number']); ?>" data-name="<?php echo htmlspecialchars(strtolower($ord['fullname'])); ?>" data-ordid="#ORD-<?php echo sprintf('%04d', $ord['order_id']); ?>">
                                             <td class="ps-4 fw-bold text-wine">#ORD-<?php echo sprintf('%04d', $ord['order_id']); ?></td>
                                             <td class="fw-semibold text-dark"><?php echo htmlspecialchars($ord['fullname']); ?></td>
                                             <td><code class="px-2 py-1 bg-light rounded text-dark border fs-8 fw-bold"><?php echo htmlspecialchars($ord['index_number']); ?></code></td>
@@ -632,43 +647,73 @@ require_once '../includes/header.php';
             });
         }
 
-        // Live Search Filter
+        // Live Search Filter & Book Specific Filter
         const searchInput = document.getElementById('orderSearchInput');
         const orderRows = document.querySelectorAll('.order-row');
         const toggleBtn = document.getElementById('toggleOlderBtn');
         const loadMoreContainer = document.getElementById('loadMoreContainer');
+        const filterButtons = document.querySelectorAll('.filter-book-btn');
+        const activeFilterBanner = document.getElementById('activeFilterBanner');
+        const filteredBookName = document.getElementById('filteredBookName');
+        const clearFilterBtn = document.getElementById('clearFilterBtn');
+
         let isExpanded = false;
+        let activeBookFilter = null;
+
+        function applyFilters() {
+            const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+            orderRows.forEach((row, index) => {
+                const bookId = row.getAttribute('data-bookid');
+                const indexNum = row.getAttribute('data-index').toLowerCase();
+                const name = row.getAttribute('data-name').toLowerCase();
+                const ordId = row.getAttribute('data-ordid').toLowerCase();
+
+                let matchesBook = (activeBookFilter === null || bookId === activeBookFilter);
+                let matchesSearch = (query === '' || indexNum.includes(query) || name.includes(query) || ordId.includes(query));
+                let matchesPagination = (activeBookFilter !== null || query !== '' || isExpanded || index < 20);
+
+                if (matchesBook && matchesSearch && matchesPagination) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            // Hide/Show load more container based on filters
+            if (loadMoreContainer) {
+                loadMoreContainer.style.display = (activeBookFilter !== null || query !== '') ? 'none' : 'block';
+            }
+        }
 
         if (searchInput) {
-            searchInput.addEventListener('input', function () {
-                const query = this.value.toLowerCase().trim();
+            searchInput.addEventListener('input', applyFilters);
+        }
 
-                orderRows.forEach((row, index) => {
-                    const indexNum = row.getAttribute('data-index').toLowerCase();
-                    const name = row.getAttribute('data-name').toLowerCase();
-                    const ordId = row.getAttribute('data-ordid').toLowerCase();
+        // Book summary filtering action
+        filterButtons.forEach(btn => {
+            btn.addEventListener('click', function () {
+                activeBookFilter = this.getAttribute('data-book-id');
+                const bookTitle = this.getAttribute('data-book-title');
 
-                    if (query !== '') {
-                        if (indexNum.includes(query) || name.includes(query) || ordId.includes(query)) {
-                            row.style.display = '';
-                        } else {
-                            row.style.display = 'none';
-                        }
-                    } else {
-                        // Restore default view state when search box is empty
-                        if (index >= 20 && !isExpanded) {
-                            row.style.display = 'none';
-                        } else {
-                            row.style.display = '';
-                        }
-                    }
-                });
+                if (filteredBookName) filteredBookName.textContent = bookTitle;
+                if (activeFilterBanner) activeFilterBanner.classList.remove('d-none');
+                activeFilterBanner.classList.add('d-flex');
 
-                if (query !== '') {
-                    if (loadMoreContainer) loadMoreContainer.style.display = 'none';
-                } else {
-                    if (loadMoreContainer) loadMoreContainer.style.display = 'block';
+                applyFilters();
+                // Scroll smoothly to orders table
+                document.getElementById('ordersTable').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        });
+
+        if (clearFilterBtn) {
+            clearFilterBtn.addEventListener('click', function () {
+                activeBookFilter = null;
+                if (activeFilterBanner) {
+                    activeFilterBanner.classList.remove('d-flex');
+                    activeFilterBanner.classList.add('d-none');
                 }
+                applyFilters();
             });
         }
 
@@ -676,13 +721,7 @@ require_once '../includes/header.php';
         if (toggleBtn) {
             toggleBtn.addEventListener('click', function () {
                 isExpanded = !isExpanded;
-
-                orderRows.forEach((row, index) => {
-                    if (index >= 20) {
-                        row.style.display = isExpanded ? '' : 'none';
-                    }
-                });
-
+                applyFilters();
                 toggleBtn.textContent = isExpanded ? 'Collapse Older Orders' : 'Show Older Orders (<?php echo count($all_orders) - 20; ?> Hidden)';
             });
         }
